@@ -26,12 +26,60 @@ You can add options to executable code like this
 
 The `echo: false` option disables the printing of code (only output is displayed).
 
-## Load Data
+## Practicing Load Data
+
+First I had to create a shortcut on the shared folder in google drive to be on mydrive. I then found that shared folder on mydrive in finder and copied the location url.
 
 ```{r}
-x <- c(1,2,3,4,5)
-y <- c(1,2,3,4,5,6,7,8,9)
-mean(x)
-mean(y)
 
+df <- readxl::read_excel("/Users/nanderson/Library/CloudStorage/GoogleDrive-nigel_anderson@brown.edu/.shortcut-targets-by-id/1RxI5D6hPL6E8DyVwvePE0g8a1CvV1L9D/grandteton_colterbay/grte_colterbay_2019/grte_amla1_2019/grte_amla1_06_18_2019/Data_CumulativeSonoBatch_v4.4.5.xlsx")
+
+clean <- df %>%
+  filter(Prob > 0.9)
+
+summary <- clean %>%
+  group_by(SppAccp) %>%
+  summarise(n = n())
+
+print(summary)
+```
+
+Here I summarize the number of times different species show up in a single Sonobat recording. This one is for site AMLA on 06/18/2019.
+
+```{r}
+
+files <- list.files(
+  path = "/Users/nanderson/Library/CloudStorage/GoogleDrive-nigel_anderson@brown.edu/.shortcut-targets-by-id/1RxI5D6hPL6E8DyVwvePE0g8a1CvV1L9D/grandteton_colterbay",
+  pattern = "\\.xlsx$",
+  full.names = TRUE,
+  recursive = TRUE
+)
+
+```
+
+```{r}
+
+library(tidyverse)
+library(readxl)
+
+process_file <- function(file) {
+  df <- tryCatch(
+    readxl::read_excel(file),
+    error = function(e) return(NULL)
+  )
+  
+  if (is.null(df)) return(NULL)
+  
+  if(!"Prob" %in% names(df)) return(NULL)
+  
+  df_clean <- df %>%
+    filter(Prob >= 0.9)
+  
+  df_clean %>%
+    group_by(SppAccp) %>%
+    summarise(n = n(), .groups = "drop") %>%
+    mutate(file = basename(file))
+}
+
+all_counts <- map_dfr(files, process_file)
 ```
