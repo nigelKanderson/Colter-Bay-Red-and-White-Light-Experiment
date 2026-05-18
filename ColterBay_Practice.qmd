@@ -30,5 +30,8 @@ The `echo: false` option disables the printing of code (only output is displayed
 
 ```{r}
 x <- c(1,2,3,4,5)
+y <- c(1,2,3,4,5,6)
 mean(x)
+mean(y)
+
 ```
