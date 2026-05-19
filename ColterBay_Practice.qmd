@@ -239,7 +239,7 @@ final_data
 
 At the end of every day:
 
-git add ColterBay_Practice.qmd
+git add .
 
 git commit -m "updated detection pipeline"
 
