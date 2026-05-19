@@ -237,6 +237,179 @@ final_data
 
 \^ I removed all of the rows where the species of bat wasn't actually identified
 
+```{r}
+
+summary(final_data$weighted_detections)
+
+table(final_data$site)
+table(final_data$species)
+table(final_data$year)
+```
+
+```{r}
+
+ggplot(final_data, aes(jd, weighted_detections)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth() +
+  theme_classic() + 
+  labs(x = "Julian Day", y = "Weighted Detections")
+```
+
+```{r}
+
+ggplot(final_data, aes(x = factor(year), y = weighted_detections)) +
+  geom_boxplot() + 
+  theme_classic() + 
+  labs(x = "Year", y = "Weighted Detections")
+```
+
+```{r}
+
+final_data %>% 
+  group_by(species) %>%
+  summarise(
+    total = sum(weighted_detections, na.rm = TRUE),
+    sites_present = n_distinct(site)
+  ) %>%
+  arrange(desc(total))
+```
+
+```{r}
+
+ggplot(final_data, aes(x = species, y = weighted_detections)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme_classic()
+```
+
+```{r}
+
+ggplot(final_data, aes(pct_forest, weighted_detections)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = 'glm') +
+  theme_classic() +
+  labs(x = '% Forest (500m)', y = 'Weighted Detections')
+```
+
+```{r}
+
+ggplot(final_data, aes(pct_open, weighted_detections)) + 
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = 'glm') +
+  theme_classic()
+```
+
+```{r}
+
+final_data %>%
+  group_by(site) %>%
+  summarise(total_activity = sum(weighted_detections)) %>%
+  ggplot(aes(reorder(site, total_activity), total_activity)) +
+  geom_col() +
+  coord_flip() +
+  theme_classic()
+```
+
+```{r}
+
+mean(final_data$weighted_detections == 0)
+```
+
+```{r}
+
+ggplot(final_data, aes(weighted_detections)) + 
+  geom_histogram(bins = 50) +
+  theme_classic()
+```
+
+Below I am running a basic model without treatment. But there is overdispersion so I can't actually run this poisson.
+
+```{r}
+#| warning: false
+
+library(car)
+library(lme4)
+
+m0 <- glmer(
+  detections ~ jd + jd2 + pct_forest + (1|site),
+  data = final_data,
+  family = poisson
+)
+
+summary(m0)
+Anova(m0, type = 2)
+performance::check_overdispersion(m0)
+```
+
+Now below I run the model as a negative binomial and we are not overdispersed but there are missing values in the data.
+
+```{r}
+
+library(glmmTMB)
+
+m_nb <- glmmTMB(
+  detections ~
+    jd +
+    jd2 +
+    pct_forest +
+    (1|site),
+  family = nbinom2,
+  data = final_data
+)
+
+summary(m_nb)
+
+performance::check_overdispersion(m_nb)
+```
+
+So I clean up the dataset and get rid of the missing values.
+
+```{r}
+
+data_model <- final_data %>%
+  filter(
+    !is.na(jd),
+    !is.na(jd2),
+    !is.na(site),
+    !is.na(pct_forest)
+  )
+```
+
+```{r}
+
+m0 <- glmmTMB(
+  detections ~ pct_forest + (1|site),
+  family = nbinom2,
+  data = data_model
+)
+
+m1 <- glmmTMB(
+  detections ~ jd + jd2 + pct_forest + (1|site),
+  family = nbinom2,
+  data = data_model
+)
+
+anova(m0, m1)
+```
+
+\^ I ran these two models to see if seasonality is an important predictor thus far. Turns out it is.
+
+```{r}
+
+m_nb <- glmmTMB(
+  detections ~
+    poly(jd,2) +
+    pct_forest +
+    (1|site),
+  family = nbinom2,
+  data = data_model
+)
+
+summary(m_nb)
+```
+
+\^ This is the same model as above but instead of putting in jd2, i have a function calculate it in the model.
+
 At the end of every day:
 
 git add .
