@@ -32,6 +32,14 @@ First I had to create a shortcut on the shared folder in google drive to be on m
 
 ```{r}
 
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(lubridate)
+```
+
+```{r}
+
 df <- readxl::read_excel("/Users/nanderson/Library/CloudStorage/GoogleDrive-nigel_anderson@brown.edu/.shortcut-targets-by-id/1RxI5D6hPL6E8DyVwvePE0g8a1CvV1L9D/grandteton_colterbay/grte_colterbay_2019/grte_amla1_2019/grte_amla1_06_18_2019/Data_CumulativeSonoBatch_v4.4.5.xlsx")
 
 clean <- df %>%
@@ -44,9 +52,11 @@ summary <- clean %>%
 print(summary)
 ```
 
-Here I summarize the number of times different species show up in a single Sonobat recording. This one is for site AMLA on 06/18/2019.
+\^ Here I summarize the number of times different species show up in a single Sonobat recording. This one is for site AMLA on 06/18/2019.
 
 ```{r}
+#| warning: false
+#| message: false
 
 files <- list.files(
   path = "/Users/nanderson/Library/CloudStorage/GoogleDrive-nigel_anderson@brown.edu/.shortcut-targets-by-id/1RxI5D6hPL6E8DyVwvePE0g8a1CvV1L9D/grandteton_colterbay",
@@ -55,12 +65,11 @@ files <- list.files(
   recursive = TRUE
 )
 
+all_counts <- map_dfr(files, process_file)
+
 ```
 
 ```{r}
-
-library(tidyverse)
-library(readxl)
 
 process_file <- function(file) {
   df <- tryCatch(
@@ -70,16 +79,83 @@ process_file <- function(file) {
   
   if (is.null(df)) return(NULL)
   
-  if(!"Prob" %in% names(df)) return(NULL)
+  required_cols <- c("Prob","SppAccp","Filename")
   
-  df_clean <- df %>%
-    filter(Prob >= 0.9)
+  if(!all(required_cols %in% names(df))) return(NULL)
   
-  df_clean %>%
-    group_by(SppAccp) %>%
-    summarise(n = n(), .groups = "drop") %>%
-    mutate(file = basename(file))
+  df <- df %>%
+    mutate(
+      
+      Prob = as.numeric(Prob),
+      
+      file_name_clean = 
+        tools::file_path_sans_ext(Filename),
+      
+      site = 
+        stringr::word(file_name_clean, 1, sep = "_"),
+      
+      date_string = 
+        stringr::str_extract(file_name_clean, "\\d{8}"),
+      
+      time_string = 
+        stringr::str_extract(file_name_clean, "\\d{6}$"),
+      
+      date = 
+        lubridate::ymd(date_string),
+      
+      year = 
+        lubridate::year(date),
+      
+      month = 
+        lubridate::month(date),
+      
+      day = 
+        lubridate::day(date),
+      
+      jd = scale(lubridate::yday(date), center =TRUE, scale = TRUE)[,1],
+      jd2 = jd^2
+      
+    )
+  
+  df %>%
+    group_by(site, year, date, jd, jd2, SppAccp) %>%
+    summarise(
+      
+      detections = n(),
+      
+      weighted_detections = 
+        sum(Prob, na.rm = TRUE),
+      
+      mean_confidence = 
+        mean(Prob, na.rm = TRUE),
+      
+      .groups = 'drop'
+    ) %>%
+    
+    rename(species = SppAccp) %>%
+    
+    mutate(
+      source_file = basename(file)
+    )
+
 }
 
-all_counts <- map_dfr(files, process_file)
 ```
+
+\^The function above will go through every excel file and extract the count data of bat species who have a high confidence in the predicted species.
+
+```{r}
+
+all_counts
+
+```
+
+\^Here is a table with the metadata and species with detections and weighted detections. Weighted detections uses confidence/probability instead of treating every detection as equally certain. So it is a confidence-weighted activity index where higher values equal more calls and stronger classifier confidence. I have also included scaled Julien day and Julien day squared to input to the models later on.
+
+At the end of every day:
+
+git add .
+
+git commit -m "updated detection pipeline"
+
+git push
