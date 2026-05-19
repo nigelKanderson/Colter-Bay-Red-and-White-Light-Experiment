@@ -224,9 +224,22 @@ final_data
 
 \^Here is a table of the added percent vegetation types at each site.
 
+```{r}
+
+final_data <- final_data %>%
+  filter(!is.na(species))
+```
+
+```{r}
+
+final_data
+```
+
+\^ I removed all of the rows where the species of bat wasn't actually identified
+
 At the end of every day:
 
-git add .
+git add ColterBay_Practice.qmd
 
 git commit -m "updated detection pipeline"
 
