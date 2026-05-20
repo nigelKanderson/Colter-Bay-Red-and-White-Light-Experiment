@@ -28,31 +28,26 @@ The `echo: false` option disables the printing of code (only output is displayed
 
 ## Practicing Load Data
 
-First I had to create a shortcut on the shared folder in google drive to be on mydrive. I then found that shared folder on mydrive in finder and copied the location url.
+First I had to create a shortcut on the shared folder in google drive to be on mydrive. I then found that shared folder on mydrive in finder and copied the location url.\^ Here I summarize the number of times different species show up in a single Sonobat recording. This one is for site AMLA on 06/18/2019.
 
-```{r}
-
-library(tidyverse)
-library(readxl)
-library(janitor)
-library(lubridate)
+```{r, warning = FALSE, message = FALSE}
+source("01_import_sonobat.R")
 ```
 
 ```{r}
-
-df <- readxl::read_excel("/Users/nanderson/Library/CloudStorage/GoogleDrive-nigel_anderson@brown.edu/.shortcut-targets-by-id/1RxI5D6hPL6E8DyVwvePE0g8a1CvV1L9D/grandteton_colterbay/grte_colterbay_2019/grte_amla1_2019/grte_amla1_06_18_2019/Data_CumulativeSonoBatch_v4.4.5.xlsx")
-
-clean <- df %>%
-  filter(Prob > 0.9)
-
-summary <- clean %>%
-  group_by(SppAccp) %>%
-  summarise(n = n())
-
-print(summary)
+source("02_clean_data.R")
+data <- clean_data(data_raw)
 ```
 
-\^ Here I summarize the number of times different species show up in a single Sonobat recording. This one is for site AMLA on 06/18/2019.
+```{r}
+source("03_extract_habitat.R")
+
+data <- add_habitat(
+  data,
+  forest_raster = nlcd_forest,
+  buffer = 500
+)
+```
 
 ```{r}
 #| warning: false
@@ -87,6 +82,9 @@ process_file <- function(file) {
     mutate(
       
       Prob = as.numeric(Prob),
+      
+      SppAccp = stringr::str_split(SppAccp, "/") %>%
+        purrr::map_chr(1),
       
       file_name_clean = 
         tools::file_path_sans_ext(Filename),
@@ -331,7 +329,7 @@ library(car)
 library(lme4)
 
 m0 <- glmer(
-  detections ~ jd + jd2 + pct_forest + (1|site),
+  detections ~ species + jd + jd2 + pct_forest + (1|site),
   data = final_data,
   family = poisson
 )
@@ -349,6 +347,7 @@ library(glmmTMB)
 
 m_nb <- glmmTMB(
   detections ~
+    species +
     jd +
     jd2 +
     pct_forest +
@@ -409,6 +408,29 @@ summary(m_nb)
 ```
 
 \^ This is the same model as above but instead of putting in jd2, i have a function calculate it in the model.
+
+Okay for today I need to fix the problems associated with species and sites. Some species are being named as multiple different species. In sites, there are 3 or 4 unlabeled sites which need fixed.
+
+```{r}
+
+sort(unique(data_model$species))
+
+sort(unique(data_model$site))
+```
+
+```{r}
+
+data_model %>%
+  filter(if_any(everything(), ~ str_detect(as.character(.), "grte")))
+```
+
+Okay problem solved I think!
+
+```{r}
+
+data_model %>%
+  count(species, sort = TRUE)
+```
 
 At the end of every day:
 
