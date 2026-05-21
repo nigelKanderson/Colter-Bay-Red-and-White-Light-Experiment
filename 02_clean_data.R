@@ -49,3 +49,5 @@ clean_data <- function(data) {
   
   return(data_clean)
 }
+
+#saveRDS(data_clean, "data_clean.rds")

@@ -9,9 +9,17 @@ nlcd_forest <- terra::rast('Annual_NLCD_LndCov_2021_CU_C1V1.tif')
 
 add_habitat <- function(data, forest_raster, buffer = 500) {
   
+  sites <- data %>%
+    dplyr::group_by(site) %>%
+    dplyr::summarise(
+      lon = first(lon),
+      lat = first(lat),
+      .groups = "drop"
+    )
+  
   
   pts <- st_as_sf(
-    data,
+    sites,
     coords = c("lon", "lat"),
     crs = 4326
   )
@@ -42,10 +50,22 @@ add_habitat <- function(data, forest_raster, buffer = 500) {
     #"mean",
   #)
   
-  sites_env <- bind_cols(sites, openness)
+  sites_env <- bind_cols(pts, openness)
+  
+  sites_env <- pts %>%
+    sf::st_drop_geometry() %>%
+    distinct(site, .keep_all = TRUE) %>%
+    mutate(openness = openness) %>%
+    select(site, openness)
   
   data_out <- data %>%
     left_join(sites_env, by = "site")
   
+  saveRDS(data_out, "data_out.rds")
+  
   return(data_out)
 }
+
+#readr::write_csv(data_out, "data_out.csv")
+
+#saveRDS(data_out, "data_out.rds")

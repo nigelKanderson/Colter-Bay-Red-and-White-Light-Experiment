@@ -50,6 +50,10 @@ data <- add_habitat(
 ```
 
 ```{r}
+source("04_data_exploration.R")
+```
+
+```{r}
 #| warning: false
 #| message: false
 
