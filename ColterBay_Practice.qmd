@@ -33,7 +33,7 @@ data <- add_habitat(
 ```
 
 ```{r}
-source("06_Occurrence_Thresholds.R")
+source("04_Occurrence_Thresholds.R")
 
 occurrences <- run_thresholds(data, thresholds = c(30, 60, 120, 300))
 
@@ -90,15 +90,11 @@ data %>%
 ```
 
 ```{r}
-
+source("05_data_exploration.R")
 ```
 
 ```{r}
-source("04_data_exploration.R")
-```
-
-```{r}
-source("05_run_models.R")
+source("06_run_models.R")
 models <- run_models(data)
 
 AIC(m0,m1,m2)
