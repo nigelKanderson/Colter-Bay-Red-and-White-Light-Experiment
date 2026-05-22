@@ -7,12 +7,23 @@ library(janitor)
 library(lubridate)
 library(purrr)
 
-files <- list.files(
+files_all <- list.files(
   path = "/Users/nanderson/Library/CloudStorage/GoogleDrive-nigel_anderson@brown.edu/.shortcut-targets-by-id/1RxI5D6hPL6E8DyVwvePE0g8a1CvV1L9D/grandteton_colterbay",
   pattern = "\\.xlsx$",
   full.names = TRUE,
   recursive = TRUE
 )
+
+excluded <- files_all[grepl('v430', basename(files_all), ignore.case = TRUE)]
+
+files <- files_all[!grepl('v430', basename(files_all), ignore.case = TRUE)]
+
+cat(
+  "Found ", length(files_all), " Excel files.\n",
+  "Excluded ", length(excluded), " v430 files. \n",
+  "Importing ", length(files), " files. \n"
+)
+  
 
 
 process_file <- function(file) {

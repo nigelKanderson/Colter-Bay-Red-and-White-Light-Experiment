@@ -9,20 +9,20 @@ sites <- tibble(
   
 )
 
-clean_species <- function(x) {
-  x %>%
-    stringr::str_split("/") %>%
-    purrr::map_chr(1) %>%
-    stringr::str_trim()
-}
+#clean_species <- function(x) {
+  #x %>%
+    #stringr::str_split("/") %>%
+    #purrr::map_chr(1) %>%
+    #stringr::str_trim()
+#}
 
 clean_data <- function(data) {
   
   data_clean <- data_raw %>%
     
-    mutate(
-      species = clean_species(species)
-    ) %>%
+    #mutate(
+      #species = clean_species(species)
+    #) %>%
     
     filter(
       !is.na(detections),
