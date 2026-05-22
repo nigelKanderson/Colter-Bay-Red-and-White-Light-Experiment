@@ -52,7 +52,7 @@ add_habitat <- function(data, forest_raster, buffer = 500) {
   
   sites_env <- bind_cols(pts, openness)
   
-  sites_env <- pts %>%
+  sites_env <-  pts %>%
     sf::st_drop_geometry() %>%
     distinct(site, .keep_all = TRUE) %>%
     mutate(openness = openness) %>%

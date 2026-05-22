@@ -6,6 +6,7 @@ library(readxl)
 library(janitor)
 library(lubridate)
 library(purrr)
+library(stringr)
 
 files_all <- list.files(
   path = "/Users/nanderson/Library/CloudStorage/GoogleDrive-nigel_anderson@brown.edu/.shortcut-targets-by-id/1RxI5D6hPL6E8DyVwvePE0g8a1CvV1L9D/grandteton_colterbay",
@@ -58,8 +59,34 @@ process_file <- function(file) {
       time_string = 
         stringr::str_extract(file_name_clean, "\\d{6}$"),
       
+      time = lubridate::hms(
+        paste0(
+          substr(time_string, 1, 2), ":",
+          substr(time_string, 3, 4), ":",
+          substr(time_string, 5, 6)
+        )
+      ),
+      
+      time_clean = str_replace_all(time, "H|M|S", " "),
+      time_clean = str_squish(time_clean),
+      hours = as.numeric(str_extract(time, "\\d+(?=H)")),
+      minutes = as.numeric(str_extract(time, "\\d+(?=M)")),
+      seconds = as.numeric(str_extract(time, "\\d+(?=S)")),
+      
+      hours = ifelse(is.na(hours), 0, hours),
+      minutes = ifelse(is.na(minutes), 0, minutes),
+      seconds = ifelse(is.na(seconds), 0, seconds),
+      
+      time_sec = hours * 3600 + minutes * 60 + seconds,
+      
       date = 
         lubridate::ymd(date_string),
+      
+      datetime =
+        as.POSIXct(
+          paste(date, time),
+          tz = "UTC"
+        ),
       
       year = 
         lubridate::year(date),
@@ -75,7 +102,7 @@ process_file <- function(file) {
       
     ) %>%
     
-    group_by(site, year, date, jd, jd2, SppAccp) %>%
+    group_by(site, year, date, jd, jd2, SppAccp, time_clean, datetime, time_sec) %>%
     
     summarise(
       
