@@ -44,11 +44,6 @@ add_habitat <- function(data, forest_raster, buffer = 500) {
     
   })
   
-  #forest_vals <- exact_extract(
-    #forest_raster,
-    #pts_buf,
-    #"mean",
-  #)
   
   sites_env <- bind_cols(pts, openness)
   
