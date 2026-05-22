@@ -13,7 +13,7 @@ Quarto enables you to weave together content and executable code into a finished
 
 First I had to create a shortcut on the shared folder in google drive to be on mydrive. I then found that shared folder on mydrive in finder and copied the location url.
 
-```{r, warning = FALSE}
+```{r, warning = FALSE, message = FALSE}
 source("01_import_sonobat.R")
 ```
 
@@ -25,11 +25,15 @@ data <- clean_data(data_raw)
 ```{r}
 source("03_extract_habitat.R")
 
+#data_env <- add_environmental_covariates(data, forest_raster)
+
 data <- add_habitat(
   data,
   forest_raster = nlcd_forest,
   buffer = 500
 )
+
+data <- add_moon(data)
 ```
 
 ```{r}
@@ -60,7 +64,7 @@ data_300 <- occurrences %>%
   filter(threshold_sec == 300)
 
 site_env <- data %>%
-  distinct(site, openness$pct_forest)
+  distinct(site, pct_forest)
 
 occurrences <- occurrences %>%
   left_join(site_env, by = "site")
