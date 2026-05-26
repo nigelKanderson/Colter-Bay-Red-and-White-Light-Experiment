@@ -53,27 +53,61 @@ add_habitat <- function(data, forest_raster, buffer = 500) {
   return(data_out)
 }
 
-add_moon <- function(data) {
-  
+add_moonlight <- function(data,
+                          timezone = "America/Denver") {
   library(dplyr)
-  library(suncalc)
+  library(moonlit)
+  library(purrr)
   
-  moon_illum <- getMoonIllumination(data$datetime)
+  site_night <- data %>%
+    mutate(date = as.Date(datetime)) %>%
+    distinct(site, date, lat, lon)
   
-  data %>%
-    rowwise() %>%
+  moon_env <- site_night %>%
+    rowwise () %>%
     mutate(
-      moon_illum = getMoonIllumination(datetime)$fraction,
-      moon_phase = getMoonIllumination(datetime)$phase,
-      moon_altitude = getMoonPosition(
-        date = datetime,
-        lat = lat,
-        lon = lon
-      )$altitude
+      moon_stats = list(
+        calculateMoonlightStatistics(
+          lat = lat,
+          lon = lon,
+          e = 0.16,
+          date = as.POSIXct(date, tz = timezone),
+          timezone = timezone,
+          t = "15 mins"
+        )
+      )
     ) %>%
+    
     ungroup()
+
+  print(names(site_night))
   
+  moon_env <- moon_env %>%
+    mutate(
+      mean_moonlight = map_dbl(moon_stats, "meanMoonlightIntensity"),
+      max_moonlight = map_dbl(moon_stats, "maxMoonlightIntensity"),
+      mean_phase = map_dbl(moon_stats, "meanMoonPhase")
+    ) %>%
+    
+    select(
+      site,
+      date,
+      mean_moonlight,
+      max_moonlight,
+      mean_phase
+    )
+  
+  data_out <- data %>%
+    mutate(date = as.Date(datetime)) %>%
+    left_join(moon_env, by = c("site", "date"))
+  
+  return(data_out)
+    
 }
+               
+    
+    
+
 
 add_environmental_covariates <- function(data, forest_raster) {
   

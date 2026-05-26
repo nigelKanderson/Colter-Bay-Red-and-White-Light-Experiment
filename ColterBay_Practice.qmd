@@ -27,13 +27,13 @@ source("03_extract_habitat.R")
 
 #data_env <- add_environmental_covariates(data, forest_raster)
 
-data <- add_habitat(
+data_env <- add_habitat(
   data,
   forest_raster = nlcd_forest,
   buffer = 500
 )
 
-data <- add_moon(data)
+data_env <- add_moonlight(data)
 ```
 
 ```{r}
