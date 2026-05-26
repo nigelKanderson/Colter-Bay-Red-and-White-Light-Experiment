@@ -33,13 +33,13 @@ data_env <- add_habitat(
   buffer = 500
 )
 
-data_env <- add_moonlight(data)
+data_env <- add_moonlight(data_env)
 ```
 
 ```{r}
 source("04_Occurrence_Thresholds.R")
 
-occurrences <- run_thresholds(data, thresholds = c(30, 60, 120, 300))
+occurrences <- run_thresholds(data_env, thresholds = c(30, 60, 120, 300))
 
 glimpse(occurrences)
 
@@ -63,7 +63,7 @@ data_120 <- occurrences %>%
 data_300 <- occurrences %>%
   filter(threshold_sec == 300)
 
-site_env <- data %>%
+site_env <- data_env %>%
   distinct(site, pct_forest)
 
 occurrences <- occurrences %>%
@@ -72,19 +72,19 @@ occurrences <- occurrences %>%
 
 ```{r}
 
-data %>%
+data_env %>%
   count(site, species) %>%
   arrange(desc(n)) %>%
   head()
 
-data %>%
+data_env %>%
   summarise(
     min_time = min(time_sec),
     max_time = max(time_sec),
     n_unique_times = n_distinct(time_sec)
   )
 
-data %>%
+data_env %>%
   arrange(site, species, time_sec) %>%
   group_by(site, species) %>%
   summarise(
@@ -99,7 +99,7 @@ source("05_data_exploration.R")
 
 ```{r}
 source("06_run_models.R")
-models <- run_models(data)
+models <- run_models(data_env)
 
 AIC(m0,m1,m2)
 

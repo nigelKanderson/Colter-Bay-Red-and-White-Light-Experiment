@@ -59,17 +59,17 @@ add_moonlight <- function(data,
   library(moonlit)
   library(purrr)
   
-  site_night <- data %>%
+  site_night <- data_env %>%
     mutate(date = as.Date(datetime)) %>%
-    distinct(site, date, lat, lon)
+    distinct(site, date, lat.y, lon.y)
   
   moon_env <- site_night %>%
     rowwise () %>%
     mutate(
       moon_stats = list(
         calculateMoonlightStatistics(
-          lat = lat,
-          lon = lon,
+          lat = lat.y,
+          lon = lon.y,
           e = 0.16,
           date = as.POSIXct(date, tz = timezone),
           timezone = timezone,
@@ -105,13 +105,3 @@ add_moonlight <- function(data,
     
 }
                
-    
-    
-
-
-add_environmental_covariates <- function(data, forest_raster) {
-  
-  data %>%
-    add_habitat(forest_raster) %>%
-    add_moon()
-}

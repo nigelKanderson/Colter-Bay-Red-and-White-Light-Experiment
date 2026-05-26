@@ -17,7 +17,7 @@ run_models <- function(data) {
     filter(
       !is.na(weighted_detections),
       !is.na(jd),
-      !is.na(openness$pct_forest)
+      !is.na(pct_forest)
     )
   
   m0 <- glmmTMB(
@@ -32,6 +32,9 @@ run_models <- function(data) {
     weighted_detections ~
       jd +
       I(jd^2) +
+      mean_moonlight +
+      max_moonlight +
+      mean_phase +
       (1|site) +
       (1|year),
     data = model_data,
@@ -42,7 +45,10 @@ run_models <- function(data) {
     weighted_detections ~
       jd +
       I(jd^2) +
-      openness$pct_forest +
+      mean_moonlight +
+      max_moonlight +
+      mean_phase +
+      pct_forest +
       (1|site) +
       (1|year),
     data = model_data,
