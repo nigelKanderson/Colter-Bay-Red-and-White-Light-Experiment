@@ -155,8 +155,6 @@ bind_rows(
   
 ```
 
-\^The function above will go through every excel file and extract the count data of bat species who have a high confidence in the predicted species.Weighted detections uses confidence/probability instead of treating every detection as equally certain. So it is a confidence-weighted activity index where higher values equal more calls and stronger classifier confidence. I have also included scaled Julien day and Julien day squared to input to the models later on. I removed all of the rows where the species of bat wasn't actually identified. Below I am running a basic model without treatment. But there is overdispersion so I can't actually run this poisson. Now below I run the model as a negative binomial and we are not overdispersed but there are missing values in the data.
-
 At the end of every day:
 
 git add .
