@@ -5,3 +5,16 @@
 .positai
 *.tif
 *.tiff
+*.CR2
+*.CR3
+*.NEF
+*.ARW
+
+output/*.png
+
+__pycache__/
+*.pyc
+
+.DS_Store
+
+.vscode/
