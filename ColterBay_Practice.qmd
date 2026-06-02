@@ -155,6 +155,23 @@ bind_rows(
   
 ```
 
+```{r}
+
+sky_brightness <- read.csv(
+  "sky_brightness_measurements.csv"
+)
+
+glimpse(sky_brightness)
+
+sky_brightness <- sky_brightness %>%
+  mutate(
+     file_name_clean = 
+        tools::file_path_sans_ext(filename),
+     site = 
+        stringr::word(file_name_clean, 2, sep = "_"),
+  )
+```
+
 At the end of every day:
 
 git add .
