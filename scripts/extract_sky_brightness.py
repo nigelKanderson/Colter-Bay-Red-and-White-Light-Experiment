@@ -108,7 +108,7 @@ for file in files:
     luminance = calculate_luminance(rgb)
 
     #Normalize to 0-1
-    luminance = luminance / np.max(luminance)
+    #luminance = luminance / np.max(luminance)
 
     #Crop Center Region
 
