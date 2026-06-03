@@ -277,29 +277,6 @@ occurrences <- occurrences %>%
 ```
 
 ```{r}
-
-data_env %>%
-  count(site, species) %>%
-  arrange(desc(n)) %>%
-  head()
-
-data_env %>%
-  summarise(
-    min_time = min(time_sec),
-    max_time = max(time_sec),
-    n_unique_times = n_distinct(time_sec)
-  )
-
-data_env %>%
-  arrange(site, species, time_sec) %>%
-  group_by(site, species) %>%
-  summarise(
-    min_gap = min(diff(time_sec), na.rm = TRUE),
-    max_gap = max(diff(time_sec), na.rm = TRUE)
-  )
-```
-
-```{r}
 source("05_data_exploration.R")
 ```
 
