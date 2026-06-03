@@ -17,7 +17,9 @@ run_models <- function(data) {
     filter(
       !is.na(weighted_detections),
       !is.na(jd),
-      !is.na(pct_forest)
+      !is.na(pct_forest),
+      !is.na(color),
+      !is.na(intensity)
     )
   
   m0 <- glmmTMB(
@@ -31,9 +33,7 @@ run_models <- function(data) {
   m1 <- glmmTMB(
     weighted_detections ~
       jd +
-      I(jd^2) +
-      mean_moonlight +
-      max_moonlight +
+      jd^2 +
       mean_phase +
       (1|site) +
       (1|year),
@@ -43,12 +43,11 @@ run_models <- function(data) {
   
   m2 <- glmmTMB(
     weighted_detections ~
-      jd +
-      I(jd^2) +
-      mean_moonlight +
-      max_moonlight +
+      jd * color +
+      jd^2 +
       mean_phase +
-      pct_forest +
+      pct_nonforest +
+      color * intensity +
       (1|site) +
       (1|year),
     data = model_data,

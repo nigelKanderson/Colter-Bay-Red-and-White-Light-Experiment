@@ -133,6 +133,8 @@ plot(sim)
 testDispersion(sim)
 
 testZeroInflation(sim)
+
+summary(models$m2)
 ```
 
 ```{r}
