@@ -63,7 +63,8 @@ library(ggeffects)
 
 pred <- ggpredict(
   models$m2,
-  terms = c("jd [all]", "color", "intensity")
+  terms = c("jd [all]", "color", "intensity"),
+  bias_correction = TRUE
 )
 
 ggplot(pred, aes(x = x, y = predicted, color = group)) +
@@ -330,6 +331,26 @@ sky_brightness <- sky_brightness %>%
      site = 
         stringr::word(file_name_clean, 2, sep = "_"),
   )
+
+sky_brightness <- sky_brightness %>%
+  mutate(site = toupper(site))
+
+sky_brightness <- sky_brightness %>%
+  group_by(site) %>%
+  summarise(
+    mean_brightness_site = mean(mean_brightness, na.rm = TRUE)
+  )
+
+data_env <- data_env %>%
+  left_join(
+    sky_brightness,
+    by = "site"
+  )
+
+```
+
+```{r}
+
 ```
 
 At the end of every day:

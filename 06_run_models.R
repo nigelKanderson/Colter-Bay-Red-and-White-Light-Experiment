@@ -19,7 +19,8 @@ run_models <- function(data) {
       !is.na(jd),
       !is.na(pct_forest),
       !is.na(color),
-      !is.na(intensity)
+      !is.na(intensity),
+      !is.na(mean_brightness_site)
     )
   
   m0 <- glmmTMB(
@@ -42,15 +43,15 @@ run_models <- function(data) {
   )
   
   m2 <- glmmTMB(
-    weighted_detections ~
+    detections ~
       jd * color +
       jd^2 +
       mean_phase +
       pct_nonforest +
       color * intensity +
+      mean_brightness_site +
       block +
-      (1|site) +
-      (1|year),
+      (1|site),
     data = model_data,
     family = nbinom2()
   )
