@@ -58,6 +58,144 @@ data_env <- data_env %>%
 ```
 
 ```{r}
+library(ggplot2)
+library(ggeffects)
+
+pred <- ggpredict(
+  models$m2,
+  terms = c("jd [all]", "color", "intensity")
+)
+
+ggplot(pred, aes(x = x, y = predicted, color = group)) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~facet) +
+  labs(
+    x = "Julian Day",
+    y = "Predicted bat occurrences",
+    color = "Light color"
+  ) + 
+  theme_classic()
+
+ggplot(pred, aes(x=x, y=group, fill=predicted)) +
+  geom_tile() +
+  facet_wrap(~facet) +
+  scale_fill_viridis_c() +
+  labs(
+    x = "Julian Day",
+    y = "Light color",
+    fill = 'Predicted occurrences'
+  ) +
+  theme_classic()
+
+pred_df <- as.data.frame(pred)
+
+p1 <- ggplot(pred_df, aes(x=x, y=predicted, color=group)) +
+  geom_line(linewidth = 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
+              alpha = 0.15, color = NA) +
+  facet_wrap(~facet) +
+  labs(
+    x = 'Julian Day',
+    y = 'Predicted bat occurrences',
+    color = 'Light color',
+    fill = 'Light color'
+  ) +
+  theme_classic()
+
+effect_df <- pred_df %>%
+  select(x, predicted, group, facet) %>%
+  pivot_wider(
+    names_from = group,
+    values_from = predicted
+  ) %>%
+  mutate(effect = W-R)
+
+p2 <- ggplot(effect_df, aes(x = x, y = effect)) +
+  geom_hline(yintercept = 0, linetype = 'dashed') +
+  geom_line(linewidth = 1) + 
+  facet_wrap(~facet) +
+  labs(
+    x = "Julian Day",
+    y = 'Effect of White Light (White - Red)'
+  ) + 
+  theme_classic()
+
+library(patchwork)
+p1 / p2
+
+ggplot(data_env, aes(x=jd, y=detections, color = color)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = 'loess') +
+  facet_wrap(~ intensity) +
+  theme_classic()
+
+data_env <- data_env %>%
+  mutate(
+    treatment = paste(color, intensity, sep='_')
+  )
+
+ggplot(data_env,
+       aes(x = treatment, y = detections)) +
+  geom_boxplot() +
+  theme_classic()
+
+summary_df <- data_env %>%
+  group_by(color, intensity) %>%
+  summarise(
+    mean_occ = mean(detections),
+    se = sd(detections)/sqrt(n()),
+    .groups = "drop"
+  )
+
+ggplot(summary_df, aes(x = factor(intensity), 
+                       y = mean_occ,
+                       color = color,
+                       group=color)) +
+  geom_point(size = 3) +
+  geom_line() +
+  geom_errorbar(
+    aes(ymin = mean_occ -se,
+        ymax = mean_occ +se),
+        width = 0.1
+  ) +
+    theme_classic()
+
+ggplot(data_env, aes(color, detections)) + 
+  geom_boxplot() + 
+  labs(
+    x = "Light color",
+    y = "Bat count"
+  )
+
+ggplot(data_env, aes(intensity, detections, color = color)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = 'lm') +
+  labs(
+    x = "Light intensity",
+    y = "Bat count"
+  )
+
+summary_df <- data_env %>%
+  group_by(color, intensity) %>%
+  summarise(
+    mean_count = mean(detections, na.rm = TRUE),
+    se = sd(detections, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  )
+
+ggplot(summary_df, aes(intensity, mean_count, color = color, group = color))+
+  geom_line() +
+  geom_point(size=3) +
+  geom_errorbar(
+    aes(
+      ymin = mean_count - se,
+      ymax = mean_count + se
+    ),
+    width = 0.1
+  )
+```
+
+```{r}
 source("04_Occurrence_Thresholds.R")
 
 occurrences <- run_thresholds(data_env, thresholds = c(30, 60, 120, 300))
@@ -184,7 +322,6 @@ sky_brightness <- read.csv(
   "sky_brightness_measurements.csv"
 )
 
-glimpse(sky_brightness)
 
 sky_brightness <- sky_brightness %>%
   mutate(
