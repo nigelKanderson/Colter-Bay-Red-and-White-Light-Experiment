@@ -37,6 +37,26 @@ data_env <- add_moonlight(data_env)
 ```
 
 ```{r}
+source("07_add_light_treatment.R")
+
+data_full <- readRDS('data_full.rds')
+
+data_env <- data_env %>%
+  left_join(
+    lighting %>%
+      select(date, color, intensity),
+    by = "date"
+  )
+
+data_env <- data_env %>%
+  mutate(
+    color = factor(color),
+    site = factor(site),
+    intensity = factor(intensity)
+  )
+```
+
+```{r}
 source("04_Occurrence_Thresholds.R")
 
 occurrences <- run_thresholds(data_env, thresholds = c(30, 60, 120, 300))
