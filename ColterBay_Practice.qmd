@@ -124,11 +124,6 @@ p2 <- ggplot(effect_df, aes(x = x, y = effect)) +
 library(patchwork)
 p1 / p2
 
-ggplot(data_env, aes(x=jd, y=detections, color = color)) +
-  geom_point(alpha = 0.4) +
-  geom_smooth(method = 'loess') +
-  facet_wrap(~ intensity) +
-  theme_classic()
 
 data_env <- data_env %>%
   mutate(

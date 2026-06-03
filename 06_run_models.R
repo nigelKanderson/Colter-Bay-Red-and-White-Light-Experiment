@@ -44,13 +44,14 @@ run_models <- function(data) {
   
   m2 <- glmmTMB(
     detections ~
-      jd * color +
+      #jd * color+
+      jd +
       jd^2 +
       mean_phase +
       pct_nonforest +
       color * intensity +
       mean_brightness_site +
-      block +
+      #block +
       (1|site),
     data = model_data,
     family = nbinom2()
