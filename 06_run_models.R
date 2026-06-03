@@ -48,6 +48,7 @@ run_models <- function(data) {
       mean_phase +
       pct_nonforest +
       color * intensity +
+      block +
       (1|site) +
       (1|year),
     data = model_data,

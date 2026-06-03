@@ -30,7 +30,7 @@ source("03_extract_habitat.R")
 data_env <- add_habitat(
   data,
   forest_raster = nlcd_forest,
-  buffer = 500
+  buffer = 50
 )
 
 data_env <- add_moonlight(data_env)
@@ -44,7 +44,7 @@ data_full <- readRDS('data_full.rds')
 data_env <- data_env %>%
   left_join(
     lighting %>%
-      select(date, color, intensity),
+      select(date, color, intensity, block),
     by = "date"
   )
 
@@ -52,7 +52,8 @@ data_env <- data_env %>%
   mutate(
     color = factor(color),
     site = factor(site),
-    intensity = factor(intensity)
+    intensity = factor(intensity),
+    block = factor(block)
   )
 ```
 
