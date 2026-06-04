@@ -25,8 +25,6 @@ data <- clean_data(data_raw)
 ```{r}
 source("03_extract_habitat.R")
 
-#data_env <- add_environmental_covariates(data, forest_raster)
-
 data_env <- add_habitat(
   data,
   forest_raster = nlcd_forest,

@@ -43,7 +43,7 @@ run_models <- function(data) {
   )
   
   m2 <- glmmTMB(
-    detections ~
+    weighted_detections ~
       #jd * color+
       jd +
       jd^2 +
