@@ -213,7 +213,7 @@ summary_df <- data_env %>%
     .groups = "drop"
   )
 
-ggplot(summary_df, aes(x = factor(intensity), 
+ggplot(summary_df, aes(x = intensity, 
                        y = mean_occ,
                        color = color,
                        group=color)) +
