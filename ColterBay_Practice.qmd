@@ -57,6 +57,12 @@ data_env <- data_env %>%
     block = factor(block)
   )
 
+data_env <- data_env %>%
+  filter(
+      !is.na(intensity),
+      !is.na(color)
+    ) 
+
 #data_env <- data_env %>%
   #mutate(intensity_bin = case_when(
     #intensity <= 30 ~ "low",
@@ -94,6 +100,10 @@ data_env <- data_env %>%
     sky_brightness,
     by = "site"
   )
+data_env <- data_env %>%
+  filter(
+      !is.na(mean_brightness_site)
+    ) 
 
 ```
 
