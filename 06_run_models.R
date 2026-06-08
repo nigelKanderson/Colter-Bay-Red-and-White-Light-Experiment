@@ -50,7 +50,7 @@ run_models <- function(data) {
       mean_phase +
       pct_nonforest +
       color * intensity +
-      intensity * mean_brightness_site +
+      mean_brightness_site +
       #block +
       (1|site),
     data = model_data,

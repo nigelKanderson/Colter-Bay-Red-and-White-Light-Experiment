@@ -16,8 +16,19 @@ clean_species <- function(x) {
     stringr::str_trim()
 }
 
+data_raw <- data_raw %>%
+  mutate(site = case_when(
+    site == "GRTE17" ~ "AMLA1",
+    site == "GRTE06" ~ "CORA1",
+    site == "GRTE16" ~ "GLSA1",
+    site == "GRTE01" ~ "SHLA1",
+    TRUE ~ site
+  ))
+
+
 
 clean_data <- function(data) {
+    
   
   data_clean <- data_raw %>%
     
@@ -42,12 +53,12 @@ clean_data <- function(data) {
     
     filter(
       !is.na(jd),
-      #!is.na(lon),
-      #!is.na(lat)
+      !is.na(lon),
+      !is.na(lat)
     ) %>%
     
     arrange(site, date, species)
   
-  saveRDS(data_clean, "data_clean.rds")
+  #saveRDS(data_clean, "data_clean.rds")
 }
 
