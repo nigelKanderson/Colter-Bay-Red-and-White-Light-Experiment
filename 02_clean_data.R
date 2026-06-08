@@ -16,6 +16,7 @@ clean_species <- function(x) {
     stringr::str_trim()
 }
 
+
 clean_data <- function(data) {
   
   data_clean <- data_raw %>%
@@ -41,13 +42,12 @@ clean_data <- function(data) {
     
     filter(
       !is.na(jd),
-      !is.na(lon),
-      !is.na(lat)
+      #!is.na(lon),
+      #!is.na(lat)
     ) %>%
     
     arrange(site, date, species)
   
-  return(data_clean)
+  saveRDS(data_clean, "data_clean.rds")
 }
 
-#saveRDS(data_clean, "data_clean.rds")
