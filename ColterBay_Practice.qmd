@@ -21,8 +21,6 @@ table(data_raw$year)
 ```{r}
 source("02_clean_data.R")
 clean_data <- clean_data(data_raw)
-#data_clean <- readRDS('data_clean.rds')
-#table(data_clean$year)
 ```
 
 ```{r}
@@ -35,6 +33,8 @@ data_env <- add_habitat(
 )
 
 data_env <- add_moonlight(data_env)
+
+
 ```
 
 ```{r}
@@ -56,6 +56,14 @@ data_env <- data_env %>%
     #intensity = factor(intensity),
     block = factor(block)
   )
+
+#data_env <- data_env %>%
+  #mutate(intensity_bin = case_when(
+    #intensity <= 30 ~ "low",
+    #intensity > 30 & intensity <= 70 ~ 'medium',
+    #intensity > 70 & intensity <= 85 ~ 'high',
+    #intensity > 85 ~ 'very high'
+  #))
 ```
 
 ```{r}
@@ -113,11 +121,13 @@ summary(models$m2)
 library(ggplot2)
 library(ggeffects)
 
+
 ggplot(data_env,
        aes(intensity, detections,
            color = color)) +
   geom_point(alpha = 0.3) +
   geom_smooth(method = "loess") +
+  facet_wrap(~ year) +
   theme_classic()
 
 
