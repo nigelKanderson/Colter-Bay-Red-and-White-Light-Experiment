@@ -20,7 +20,7 @@ data_raw <- data_raw %>%
   mutate(site = case_when(
     site == "GRTE17" ~ "AMLA1",
     site == "GRTE06" ~ "CORA1",
-    site == "GRTE16" ~ "GLSA1",
+    site == "GRTE16" ~ "GSLA1",
     site == "GRTE01" ~ "SHLA1",
     TRUE ~ site
   ))
