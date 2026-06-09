@@ -104,6 +104,8 @@ data_env <- data_env %>%
   filter(
       !is.na(mean_brightness_site)
     ) 
+data_env <- data_env %>%
+  filter(species != "HiF")
 
 ```
 
@@ -401,6 +403,50 @@ ggplot(
 ) +
   geom_tile() +
   theme_classic()
+```
+
+```{r}
+library(mvabund)
+
+Y <- mvabund(comm)
+
+fit <- manyglm(
+  Y ~ color +
+    intensity +
+    mean_phase.x +
+    pct_nonforest.x +
+    mean_brightness_site +
+    year,
+  family = "negative.binomial",
+  data = env
+)
+
+anova(
+  fit,
+  p.uni = "adjusted",
+  nBoot = 9999
+)
+```
+
+```{r}
+data_env %>%
+  group_by(species) %>%
+  summarise(
+    total_detections = sum(detections),
+    n_samples = n(),
+    .groups = 'drop'
+  ) %>%
+  arrange(total_detections)
+```
+
+```{r}
+comm_dat %>%
+  group_by(species) %>%
+  summarise(
+    occupancy = sum(det_per_night > 0),
+    .groups = "drop"
+  ) %>%
+  arrange(occupancy)
 ```
 
 ```{r}
