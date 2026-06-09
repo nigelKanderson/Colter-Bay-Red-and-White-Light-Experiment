@@ -331,21 +331,6 @@ nmds$stress
 ```
 
 ```{r}
-scores_df <- as.data.frame(scores(nmds))
-
-scores_df <- bind_cols(scores_df, env)
-
-library(ggplot2)
-
-ggplot(scores_df,
-       aes(NMDS1,
-           NMDS2,
-           color = color)) +
-  geom_point(size = 3) +
-  theme_classic()
-```
-
-```{r}
 
 adonis2(
   comm ~ color +
@@ -544,7 +529,7 @@ newdat <- data_frame(
   mean_phase = mean(data_env$mean_phase, na.rm = TRUE),
   pct_nonforest = mean(data_env$pct_nonforest, na.rm = TRUE),
   mean_brightness_site = mean(data_env$mean_brightness_site, na.rm = TRUE),
-  year = 2024
+  year = 2020
 )
 
 pred <- predict(fit, newdata = newdat, type = 'response')
@@ -571,6 +556,54 @@ ggplot(heat_dat,
            fill = mean_det)) +
   geom_tile() +
   facet_wrap(~ color)
+```
+
+```{r}
+species_plot <- data_env %>%
+  group_by(species, intensity) %>%
+  summarise(
+    mean_det = mean(detections),
+    se = sd(detections)/sqrt(n()),
+    .groups = 'drop'
+  )
+
+ggplot(species_plot,
+       aes(intensity, mean_det)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~ species, scales = 'free_y') +
+  theme_classic() +
+  labs(
+    x = 'Light intensity',
+    y = 'Mean detections'
+  )
+```
+
+```{r}
+ggplot(data_env,
+       aes(intensity,
+           detections)) +
+  geom_smooth(
+    method = 'loess',
+    se = TRUE
+  ) +
+  facet_wrap(~ species,
+             scales = 'free_y') +
+  theme_classic()
+```
+
+```{r}
+ggplot(data_env,
+       aes(intensity,
+           detections,
+           color = color)) +
+  geom_smooth(
+    method = 'loess',
+    se = TRUE
+  ) +
+  facet_wrap(~ species,
+             scales = 'free_y') +
+  theme_classic()
 ```
 
 ```{r}
