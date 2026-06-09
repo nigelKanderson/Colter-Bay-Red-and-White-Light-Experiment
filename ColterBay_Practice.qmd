@@ -312,8 +312,8 @@ env <- community_matrix %>%
          year,
          color,
          intensity,
-         mean_phase.x,
-         pct_nonforest.x,
+         mean_phase,
+         pct_nonforest,
          mean_brightness_site)
 ```
 
@@ -350,8 +350,8 @@ ggplot(scores_df,
 adonis2(
   comm ~ color +
     intensity +
-    mean_phase.x +
-    pct_nonforest.x +
+    mean_phase +
+    pct_nonforest +
     mean_brightness_site,
   data = env,
   method = 'bray',
@@ -369,8 +369,8 @@ anova(bd)
 db <- dbrda(
   comm ~ color +
     intensity +
-    mean_phase.x +
-    pct_nonforest.x +
+    mean_phase +
+    pct_nonforest +
     mean_brightness_site +
     Condition(year),
   data = env,
@@ -413,8 +413,8 @@ Y <- mvabund(comm)
 fit <- manyglm(
   Y ~ color +
     intensity +
-    mean_phase.x +
-    pct_nonforest.x +
+    mean_phase +
+    pct_nonforest +
     mean_brightness_site +
     year,
   family = "negative.binomial",
@@ -447,6 +447,80 @@ comm_dat %>%
     .groups = "drop"
   ) %>%
   arrange(occupancy)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+heat_dat <- data_env %>%
+  group_by(species, intensity, color) %>%
+  summarise(
+    mean_det = mean(detections),
+    .groups = "drop"
+  )%>%
+  group_by(species) %>%
+  mutate(mean_det_z = scale(mean_det))%>%
+  ungroup()
+
+library(ggplot2)
+
+ggplot(heat_dat,
+       aes(x = factor(intensity),
+           y = species,
+           fill = mean_det_z)) +
+  geom_tile() +
+  scale_fill_gradient2(
+    low = 'blue',
+    mid = 'white',
+    high = 'red'
+  ) +
+  theme_classic() +
+  labs(x = 'Light Intensity',
+       y = 'Species',
+       fill = 'Relative Activity')
+
+
+```
+
+```{r}
+library(mvabund)
+
+newdat <- data_frame(
+  intensity = seq(min(data_env$intensity),
+                  max(data_env$intensity),
+                  length.out = 100),
+  color = 'W',
+  mean_phase = mean(data_env$mean_phase, na.rm = TRUE),
+  pct_nonforest = mean(data_env$pct_nonforest, na.rm = TRUE),
+  mean_brightness_site = mean(data_env$mean_brightness_site, na.rm = TRUE),
+  year = 2024
+)
+
+pred <- predict(fit, newdata = newdat, type = 'response')
+
+pred_df <- as.data.frame(pred) %>%
+  mutate(intensity = newdat$intensity) %>%
+  pivot_longer(-intensity,
+               names_to = 'species',
+               values_to = 'predicted')
+
+ggplot(pred_df,
+       aes(x = intensity,
+           y = predicted,
+           color = species)) +
+  geom_line() +
+  theme_classic () +
+  labs(y = 'Predicted detections')
+```
+
+```{r}
+ggplot(heat_dat,
+       aes(factor(intensity),
+           species,
+           fill = mean_det)) +
+  geom_tile() +
+  facet_wrap(~ color)
 ```
 
 ```{r}
