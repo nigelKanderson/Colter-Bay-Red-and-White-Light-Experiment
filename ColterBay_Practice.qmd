@@ -386,6 +386,56 @@ anova(db,
 ```
 
 ```{r}
+library(vegan)
+library(ggplot2)
+library(dplyr)
+
+site_scores <- as.data.frame(scores(db, display = 'sites'))
+
+site_scores <- bind_cols(site_scores, env)
+
+ggplot(site_scores,
+       aes(dbRDA1,
+           dbRDA2,
+           color = color,
+           size = intensity)) +
+  geom_point(alpha = 0.8, size = 2) +
+  #stat_ellipse(level = 0.95) +
+  facet_wrap(~ year) +
+  theme_classic()
+```
+
+```{r}
+env_scores <- as.data.frame(scores(db, display='bp'))
+env_scores$variable <- rownames(env_scores)
+
+ggplot(site_scores,
+       aes(dbRDA1,
+           dbRDA2,
+           color = color)) +
+  geom_point(size = 3) +
+  
+  geom_segment(
+    data = env_scores,
+    aes(x = 0,
+        y = 0,
+        xend = dbRDA1,
+        yend = dbRDA2),
+    inherit.aes = FALSE,
+    arrow = arrow(length = unit(0.2, 'cm'))
+  ) +
+  
+  geom_text(
+    data = env_scores,
+    aes(dbRDA1,
+        dbRDA2,
+        label = variable),
+    inherit.aes = FALSE
+  ) +
+  theme_classic()
+```
+
+```{r}
 heat_dat <- comm_dat %>%
   group_by(species,
            color,
