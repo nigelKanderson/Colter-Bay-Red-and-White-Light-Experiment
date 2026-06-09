@@ -224,6 +224,186 @@ occurrences <- occurrences %>%
 ```
 
 ```{r}
+library(dplyr)
+library(tidyr)
+
+effort <- data_env %>%
+  group_by(site, year, color, intensity) %>%
+  summarise(
+    nights = n_distinct(date),
+    .groups = "drop"
+  )
+
+comm_dat <- data_env %>%
+  group_by(site,
+           year,
+           color,
+           intensity,
+           species) %>%
+  summarise(
+    detections = sum(detections),
+    .groups = "drop"
+  )
+
+comm_dat <- comm_dat %>%
+  left_join(
+    effort,
+    by = c("site", 'year', 'color', 'intensity')
+  ) %>%
+  mutate(
+    det_per_night = detections/nights
+  )
+
+```
+
+```{r}
+community_matrix <- comm_dat %>%
+  select(site,
+         year,
+         color,
+         intensity,
+         species,
+         det_per_night) %>%
+  pivot_wider(
+    names_from = species,
+    values_from = det_per_night,
+    values_fill = 0
+  )
+
+env <- data_env %>%
+  group_by(site,
+           year,
+           color,
+           intensity) %>%
+  summarise(
+    mean_phase = first(mean_phase),
+    pct_nonforest = first(pct_nonforest),
+    mean_brightness_site = first(mean_brightness_site),
+    .groups = "drop"
+  )
+
+community_matrix <- community_matrix %>%
+  left_join(
+    env,
+    by = c('site',
+           'year',
+           'color',
+           'intensity')
+  )
+
+species_cols <- setdiff(
+  names(community_matrix),
+  c('site',
+    'year',
+    'color',
+    'intensity',
+    'mean_phase',
+    'pct_nonforest',
+    'mean_brightness_site')
+)
+
+comm <- community_matrix %>%
+  select(all_of(species_cols))
+
+env <- community_matrix %>%
+  select(site,
+         year,
+         color,
+         intensity,
+         mean_phase.x,
+         pct_nonforest.x,
+         mean_brightness_site)
+```
+
+```{r}
+library(vegan)
+
+nmds <- metaMDS(
+  comm,
+  distance = 'bray',
+  k = 2,
+  trymax = 100
+)
+
+nmds$stress
+```
+
+```{r}
+scores_df <- as.data.frame(scores(nmds))
+
+scores_df <- bind_cols(scores_df, env)
+
+library(ggplot2)
+
+ggplot(scores_df,
+       aes(NMDS1,
+           NMDS2,
+           color = color)) +
+  geom_point(size = 3) +
+  theme_classic()
+```
+
+```{r}
+
+adonis2(
+  comm ~ color +
+    intensity +
+    mean_phase.x +
+    pct_nonforest.x +
+    mean_brightness_site,
+  data = env,
+  method = 'bray',
+  permutatins = 9999
+)
+
+bc <- vegdist(comm, method = 'bray')
+
+bd <- betadisper(bc, group = env$color)
+
+anova(bd)
+```
+
+```{r}
+db <- dbrda(
+  comm ~ color +
+    intensity +
+    mean_phase.x +
+    pct_nonforest.x +
+    mean_brightness_site +
+    Condition(year),
+  data = env,
+  distance = 'bray'
+)
+
+anova(db, permutations = 9999)
+
+anova(db,
+      by = 'margin',
+      permutations = 9999)
+
+```
+
+```{r}
+heat_dat <- comm_dat %>%
+  group_by(species,
+           color,
+           intensity) %>%
+  summarise(
+    mean_det = mean(det_per_night),
+    .groups = 'drop'
+  )
+
+ggplot(
+  heat_dat,
+  aes(interaction(color, intensity),
+      species,
+      fill = mean_det)
+) +
+  geom_tile() +
+  theme_classic()
+```
+
+```{r}
 source("05_data_exploration.R")
 ```
 
