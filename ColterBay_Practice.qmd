@@ -143,132 +143,50 @@ ggplot(data_env,
 
 pred <- ggpredict(
   models$m2,
-  terms = c("jd [all]", "color", "intensity"),
+  terms = c("intensity [all]", "color"),
   bias_correction = TRUE
 )
 
-ggplot(pred, aes(x = x, y = predicted, color = group)) +
-  geom_line(linewidth = 1) +
-  facet_wrap(~facet) +
-  labs(
-    x = "Julian Day",
-    y = "Predicted bat occurrences",
-    color = "Light color"
-  ) + 
-  theme_classic()
-
-ggplot(pred, aes(x=x, y=group, fill=predicted)) +
-  geom_tile() +
-  facet_wrap(~facet) +
-  scale_fill_viridis_c() +
-  labs(
-    x = "Julian Day",
-    y = "Light color",
-    fill = 'Predicted occurrences'
-  ) +
-  theme_classic()
-
-pred_df <- as.data.frame(pred)
-
-p1 <- ggplot(pred_df, aes(x=x, y=predicted, color=group)) +
-  geom_line(linewidth = 1) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group),
-              alpha = 0.15, color = NA) +
-  facet_wrap(~facet) +
-  labs(
-    x = 'Julian Day',
-    y = 'Predicted bat occurrences',
-    color = 'Light color',
-    fill = 'Light color'
-  ) +
-  theme_classic()
-
-effect_df <- pred_df %>%
-  select(x, predicted, group, facet) %>%
-  pivot_wider(
-    names_from = group,
-    values_from = predicted
-  ) %>%
-  mutate(effect = W-R)
-
-p2 <- ggplot(effect_df, aes(x = x, y = effect)) +
-  geom_hline(yintercept = 0, linetype = 'dashed') +
-  geom_line(linewidth = 1) + 
-  facet_wrap(~facet) +
-  labs(
-    x = "Julian Day",
-    y = 'Effect of White Light (White - Red)'
-  ) + 
-  theme_classic()
-
-library(patchwork)
-p1 / p2
-
-
-data_env <- data_env %>%
-  mutate(
-    treatment = paste(color, intensity, sep='_')
-  )
+plot(pred)
 
 ggplot(data_env,
-       aes(x = treatment, y = detections)) +
-  geom_boxplot() +
+       aes(intensity,
+           detections,
+           color = color)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "loess") +
   theme_classic()
 
-summary_df <- data_env %>%
+plot_data <- data_env %>%
   group_by(color, intensity) %>%
   summarise(
-    mean_occ = mean(detections),
+    mean_det = mean(detections),
     se = sd(detections)/sqrt(n()),
-    .groups = "drop"
+    .groups = 'drop'
   )
 
-ggplot(summary_df, aes(x = intensity, 
-                       y = mean_occ,
-                       color = color,
-                       group=color)) +
-  geom_point(size = 3) +
+ggplot(plot_data,
+       aes(intensity, mean_det, color = color)) +
+  geom_point() +
   geom_line() +
-  geom_errorbar(
-    aes(ymin = mean_occ -se,
-        ymax = mean_occ +se),
-        width = 0.1
-  ) +
-    theme_classic()
+  geom_errorbar(aes(ymin = mean_det - se,
+                    ymax = mean_det + se),
+                width = 2) +
+  theme_classic()
 
-ggplot(data_env, aes(color, detections)) + 
-  geom_boxplot() + 
-  labs(
-    x = "Light color",
-    y = "Bat count"
-  )
+ggplot(data_env,
+       aes(factor(intensity),
+           detections,
+           fill = color)) +
+  geom_boxplot(outlier.alpha = 0.1) +
+  theme_classic()
 
-ggplot(data_env, aes(intensity, detections, color = color)) +
-  geom_point(alpha = 0.6) +
-  geom_smooth(method = 'lm') +
-  labs(
-    x = "Light intensity",
-    y = "Bat count"
-  )
-
-summary_df <- data_env %>%
-  group_by(color, intensity) %>%
-  summarise(
-    mean_count = mean(detections, na.rm = TRUE),
-    se = sd(detections, na.rm = TRUE) / sqrt(n()),
-    .groups = "drop"
-  )
-
-ggplot(summary_df, aes(intensity, mean_count, color = color, group = color))+
-  geom_line() +
-  geom_point(size=3) +
-  geom_errorbar(
-    aes(
-      ymin = mean_count - se,
-      ymax = mean_count + se
-    ),
-    width = 0.1
-  )
+ggplot(data_env,
+       aes(intensity,
+           detections)) +
+  geom_hex() +
+  facet_wrap(~ color) +
+  theme_classic()
 ```
 
 ```{r}
