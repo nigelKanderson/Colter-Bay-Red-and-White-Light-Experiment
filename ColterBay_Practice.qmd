@@ -452,7 +452,7 @@ fit <- manyglm(
     mean_phase +
     pct_nonforest +
     mean_brightness_site +
-    (1|year),
+    year,
   family = "negative.binomial",
   data = env
 )
@@ -605,6 +605,100 @@ ggplot(data_env,
   facet_wrap(~ species,
              scales = 'free_y') +
   theme_classic()
+```
+
+```{r}
+species_totals <- data_env %>%
+  group_by(species, color) %>%
+  summarise(
+    total_det = sum(detections),
+    .groups = 'drop'
+  )
+
+library(ggplot2)
+
+ggplot(species_totals,
+       aes(x = color,
+           y = total_det,
+           fill = color)) +
+  geom_col() +
+  facet_wrap(~ species, scales = 'free_y') +
+  theme_classic() +
+  labs(
+    x = 'Light color',
+    y = 'Total detections'
+  )
+```
+
+```{r}
+ggplot(species_totals,
+       aes(total_det,
+           species,
+           fill = color)) +
+  geom_col(position = 'dodge') +
+  theme_classic() +
+  labs(
+    x = 'Total detections',
+    y = 'Species'
+  )
+```
+
+```{r}
+species_prop <- data_env %>%
+  group_by(species, color) %>%
+  summarise(total_det = sum(detections),
+            .groups = 'drop') %>%
+  group_by(species) %>%
+  mutate(prop = total_det / sum(total_det))
+
+ggplot(species_prop,
+       aes(color, prop, fill = color)) +
+  geom_col() +
+  facet_wrap(~ species) +
+  theme_classic()
+```
+
+```{r}
+
+epfu <- data_env %>%
+  filter(species == 'Laci')
+
+m_epfu <- glmmTMB(
+  detections ~ color*intensity + jd + jd^2 + mean_phase + mean_brightness_site + pct_nonforest + (1|year) + (1|site),
+  family = nbinom2,
+  data = epfu
+)
+
+summary(m_epfu)
+```
+
+```{r}
+m_species <- glmmTMB(
+  detections ~ color * species +
+    intensity +
+    mean_phase +
+    pct_nonforest +
+    jd +
+    jd^2 +
+    (1|year) +
+    (1|site),
+  family = nbinom2,
+  data = data_env
+)
+
+car::Anova(m_species)
+```
+
+```{r}
+library(emmeans)
+
+emm <- emmeans(
+  m_species,
+  ~ color | species,
+  type = "response"
+)
+
+pairs(emm)
 ```
 
 ```{r}
