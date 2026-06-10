@@ -337,7 +337,8 @@ adonis2(
     intensity +
     mean_phase +
     pct_nonforest +
-    mean_brightness_site,
+    mean_brightness_site +
+    (1|year),
   data = env,
   method = 'bray',
   permutatins = 9999
@@ -451,7 +452,7 @@ fit <- manyglm(
     mean_phase +
     pct_nonforest +
     mean_brightness_site +
-    year,
+    (1|year),
   family = "negative.binomial",
   data = env
 )

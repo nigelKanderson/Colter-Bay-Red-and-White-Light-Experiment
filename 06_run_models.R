@@ -43,7 +43,7 @@ run_models <- function(data) {
   )
   
   m2 <- glmmTMB(
-    weighted_detections ~
+    detections ~
       #jd * color+
       jd +
       jd^2 +
@@ -52,7 +52,8 @@ run_models <- function(data) {
       color * intensity +
       mean_brightness_site +
       #block +
-      (1|site),
+      (1|site) +
+      (1|year),
     data = model_data,
     family = nbinom2()
   )
