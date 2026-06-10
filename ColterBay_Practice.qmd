@@ -106,6 +106,10 @@ data_env <- data_env %>%
     ) 
 data_env <- data_env %>%
   filter(species != "HiF")
+data_env <- data_env %>%
+  filter(species != "Myca")
+data_env <- data_env %>%
+  filter(species != "Myth")
 
 ```
 
@@ -675,9 +679,10 @@ summary(m_epfu)
 ```{r}
 m_species <- glmmTMB(
   detections ~ color * species +
-    intensity +
+    species * intensity +
     mean_phase +
     pct_nonforest +
+    mean_brightness_site +
     jd +
     jd^2 +
     (1|year) +
@@ -699,6 +704,37 @@ emm <- emmeans(
 )
 
 pairs(emm)
+```
+
+```{r}
+emm_int <- emtrends(
+  m_species,
+  ~ species,
+  var = "intensity"
+)
+
+summary(emm_int)
+```
+
+```{r}
+pairs(emm_int)
+```
+
+```{r}
+emmip(m_species, species ~ intensity, type = 'response')
+```
+
+```{r}
+emm_df <- as.data.frame(emmeans(m_species,
+                                ~ intensity | species,
+                                type = 'response'))
+
+ggplot(emm_df,
+       aes(intensity,
+           response)) +
+  geom_line()+
+  facet_wrap(~ species, scales = 'free_y') +
+  theme_classic()
 ```
 
 ```{r}
