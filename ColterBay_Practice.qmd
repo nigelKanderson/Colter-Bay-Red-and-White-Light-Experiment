@@ -721,6 +721,31 @@ pairs(emm_int)
 ```
 
 ```{r}
+library(dplyr)
+library(ggplot2)
+
+plot_dat <- data_env %>%
+  group_by(species, year, color) %>%
+  summarise(
+    total_det = sum(detections, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+ggplot(plot_dat,
+       aes(x = factor(year),
+           y = total_det,
+           fill = color)) +
+  geom_col(position = 'dodge') +
+  facet_wrap(~species, scales = 'free_y') +
+  theme_classic() +
+  labs(
+    x = 'Year',
+    y = 'Total detections',
+    fill = 'Light Color'
+  )
+```
+
+```{r}
 source("05_data_exploration.R")
 ```
 

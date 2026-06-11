@@ -49,11 +49,12 @@ run_models <- function(data) {
       jd^2 +
       mean_phase +
       pct_nonforest +
-      color * intensity +
+      color * species +
+      intensity +
       mean_brightness_site +
       block +
-      (1|site) +
-      (1|year),
+      year +
+      (1|site),
     data = model_data,
     family = nbinom2()
   )
