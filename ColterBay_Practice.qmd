@@ -138,14 +138,6 @@ library(ggplot2)
 library(ggeffects)
 
 
-ggplot(data_env,
-       aes(intensity, detections,
-           color = color)) +
-  geom_point(alpha = 0.3) +
-  geom_smooth(method = "loess") +
-  facet_wrap(~ year) +
-  theme_classic()
-
 
 pred <- ggpredict(
   models$m2,
@@ -245,7 +237,8 @@ comm_dat <- data_env %>%
            year,
            color,
            intensity,
-           species) %>%
+           species,
+           block) %>%
   summarise(
     detections = sum(detections),
     .groups = "drop"
@@ -269,7 +262,9 @@ community_matrix <- comm_dat %>%
          color,
          intensity,
          species,
-         det_per_night) %>%
+         block,
+         det_per_night
+         ) %>%
   pivot_wider(
     names_from = species,
     values_from = det_per_night,
@@ -305,7 +300,8 @@ species_cols <- setdiff(
     'intensity',
     'mean_phase',
     'pct_nonforest',
-    'mean_brightness_site')
+    'mean_brightness_site',
+    'block')
 )
 
 comm <- community_matrix %>%
@@ -318,7 +314,8 @@ env <- community_matrix %>%
          intensity,
          mean_phase,
          pct_nonforest,
-         mean_brightness_site)
+         mean_brightness_site,
+         block)
 ```
 
 ```{r}
@@ -342,6 +339,7 @@ adonis2(
     mean_phase +
     pct_nonforest +
     mean_brightness_site +
+    block +
     (1|year),
   data = env,
   method = 'bray',
@@ -362,6 +360,7 @@ db <- dbrda(
     mean_phase +
     pct_nonforest +
     mean_brightness_site +
+    block +
     Condition(year),
   data = env,
   distance = 'bray'
@@ -429,7 +428,7 @@ ggplot(site_scores,
 heat_dat <- comm_dat %>%
   group_by(species,
            color,
-           intensity) %>%
+           year) %>%
   summarise(
     mean_det = mean(det_per_night),
     .groups = 'drop'
@@ -437,7 +436,7 @@ heat_dat <- comm_dat %>%
 
 ggplot(
   heat_dat,
-  aes(interaction(color, intensity),
+  aes(interaction(color, year),
       species,
       fill = mean_det)
 ) +
@@ -456,6 +455,7 @@ fit <- manyglm(
     mean_phase +
     pct_nonforest +
     mean_brightness_site +
+    block +
     year,
   family = "negative.binomial",
   data = env
@@ -718,23 +718,6 @@ summary(emm_int)
 
 ```{r}
 pairs(emm_int)
-```
-
-```{r}
-emmip(m_species, species ~ intensity, type = 'response')
-```
-
-```{r}
-emm_df <- as.data.frame(emmeans(m_species,
-                                ~ intensity | species,
-                                type = 'response'))
-
-ggplot(emm_df,
-       aes(intensity,
-           response)) +
-  geom_line()+
-  facet_wrap(~ species, scales = 'free_y') +
-  theme_classic()
 ```
 
 ```{r}

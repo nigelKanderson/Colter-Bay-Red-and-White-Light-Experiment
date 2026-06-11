@@ -51,7 +51,7 @@ run_models <- function(data) {
       pct_nonforest +
       color * intensity +
       mean_brightness_site +
-      #block +
+      block +
       (1|site) +
       (1|year),
     data = model_data,
