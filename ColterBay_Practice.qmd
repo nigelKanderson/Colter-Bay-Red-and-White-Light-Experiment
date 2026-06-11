@@ -51,6 +51,25 @@ data_env <- data_env %>%
 
 data_env <- data_env %>%
   mutate(
+    color = if_else(
+      year %in% c(2021, 2023) & is.na(color),
+      "R",
+      color
+    ),
+    intensity = if_else(
+      year %in% c(2021, 2023) & is.na(intensity),
+      75,
+      intensity
+    ),
+    block = if_else(
+      year %in% c(2021, 2023),
+      "zero",
+      block
+    )
+  )
+
+data_env <- data_env %>%
+  mutate(
     color = factor(color),
     site = factor(site),
     #intensity = factor(intensity),
@@ -110,6 +129,12 @@ data_env <- data_env %>%
   filter(species != "Myca")
 data_env <- data_env %>%
   filter(species != "Myth")
+data_env <- data_env %>%
+  filter(species != "Myse")
+data_env <- data_env %>%
+  filter(species != "Labo")
+data_env <- data_env %>%
+  filter(species != "Coto")
 
 ```
 
@@ -428,7 +453,7 @@ ggplot(site_scores,
 heat_dat <- comm_dat %>%
   group_by(species,
            color,
-           year) %>%
+           block) %>%
   summarise(
     mean_det = mean(det_per_night),
     .groups = 'drop'
@@ -436,7 +461,7 @@ heat_dat <- comm_dat %>%
 
 ggplot(
   heat_dat,
-  aes(interaction(color, year),
+  aes(interaction(color, block),
       species,
       fill = mean_det)
 ) +
@@ -743,6 +768,58 @@ ggplot(plot_dat,
     y = 'Total detections',
     fill = 'Light Color'
   )
+```
+
+```{r}
+plot_dat <- data_env %>%
+  group_by(species, year, color) %>%
+  summarise(
+    mean_det = mean(detections, na.rm = TRUE),
+    se = sd(detections, na.rm = TRUE)/sqrt(n()),
+    .groups = 'drop'
+  )
+
+ggplot(plot_dat,
+       aes(x = factor(year),
+           y = mean_det,
+           fill = color)) +
+  geom_col(position = position_dodge(.8)) +
+  geom_errorbar(
+    aes(ymin = mean_det - se,
+        ymax = mean_det +se),
+    width = .2,
+    position = position_dodge(.8)
+  ) +
+  facet_wrap(~ species, scales = 'free_y') +
+  theme_classic()
+```
+
+```{r}
+library(emmeans)
+
+emm <- emmeans(
+  models$m2,
+  ~ color * year | species,
+  type = 'response'
+)
+
+emm_df <- as.data.frame(emm)
+
+ggplot(emm_df,
+       aes(year,
+           response,
+           color = color,
+           group = color)) +
+  geom_line() +
+  geom_point() +
+  geom_errorbar(
+    aes(ymin = asymp.LCL,
+        ymax = asymp.UCL),
+    width = .1
+  ) +
+  facet_wrap(~ species,
+             scales = "free_y") +
+  theme_classic()
 ```
 
 ```{r}

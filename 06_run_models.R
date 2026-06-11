@@ -49,8 +49,7 @@ run_models <- function(data) {
       jd^2 +
       mean_phase +
       pct_nonforest +
-      color * species +
-      intensity +
+      intensity * color +
       mean_brightness_site +
       block +
       year +
