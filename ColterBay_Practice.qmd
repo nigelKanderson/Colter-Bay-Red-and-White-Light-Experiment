@@ -159,57 +159,451 @@ summary(models$m2)
 ```
 
 ```{r}
-library(ggplot2)
+library(emmeans)
+
+emm_slopes <- emtrends(models$m2, ~ color, var = "intensity")
+print(emm_slopes)
+pairs(emm_slopes)
+confint(emm_slopes)
+
+emm_ci <- emmeans(models$m2, ~ color | intensity,
+                  at = list(intensity = c(100,80,85,65,70,90,95,75,10,50,30,60)),
+                  type = "response")
+print(emm_ci)
+pairs(emm_ci)
+
+emm_block <- emmeans(models$m2, ~ block, type = "response")
+pairs(emm_block, adjust = 'tukey')
+
+#emm_year <- emmeans(models$m2, ~ year, type = 'response')
+#pairs(emm_year, adjust = 'tukey')
+```
+
+```{r}
+library(glmmTMB)
+library(emmeans)
 library(ggeffects)
+library(tidyverse)
+library(patchwork)
 
-
-
-pred <- ggpredict(
-  models$m2,
-  terms = c("intensity [all]", "color"),
-  bias_correction = TRUE
-)
-
-plot(pred)
-
-ggplot(data_env,
-       aes(intensity,
-           detections,
-           color = color)) +
-  geom_point(alpha = 0.1) +
-  geom_smooth(method = "loess") +
-  theme_classic()
-
-plot_data <- data_env %>%
-  group_by(color, intensity) %>%
-  summarise(
-    mean_det = mean(detections),
-    se = sd(detections)/sqrt(n()),
-    .groups = 'drop'
+# ── Shared theme ──────────────────────────────────────────────────────────────
+# Clean white-background publication style with warm field-science accent tones
+bat_theme <- theme_classic(base_size = 12) +
+  theme(
+    plot.background    = element_rect(fill = "white", color = NA),
+    panel.background   = element_rect(fill = "white", color = NA),
+    panel.grid.major.y = element_line(color = "#EBEBEB", linewidth = 0.4),
+    panel.grid.major.x = element_blank(),
+    axis.line          = element_line(color = "#444444", linewidth = 0.5),
+    axis.ticks         = element_line(color = "#444444"),
+    axis.text          = element_text(color = "#333333", size = 10),
+    axis.title         = element_text(color = "#222222", size = 11),
+    plot.title         = element_text(color = "#111111", size = 13,
+                                      face = "bold", margin = margin(b = 3)),
+    plot.subtitle      = element_text(color = "#666666", size = 9,
+                                      margin = margin(b = 8)),
+    legend.background  = element_rect(fill = "white", color = NA),
+    legend.key         = element_rect(fill = "white", color = NA),
+    legend.text        = element_text(color = "#333333", size = 10),
+    legend.title       = element_text(color = "#444444", size = 9,
+                                      face = "bold"),
+    strip.background   = element_rect(fill = "#F2F2F2", color = NA),
+    strip.text         = element_text(color = "#222222", face = "bold",
+                                      size = 10),
+    plot.caption       = element_text(color = "#999999", size = 8,
+                                      hjust = 0, margin = margin(t = 8)),
+    plot.margin        = margin(12, 14, 10, 12)
   )
 
-ggplot(plot_data,
-       aes(intensity, mean_det, color = color)) +
-  geom_point() +
-  geom_line() +
-  geom_errorbar(aes(ymin = mean_det - se,
-                    ymax = mean_det + se),
-                width = 2) +
-  theme_classic()
+# Color palette — red/white light as primary contrast, muted supporting colors
+col_red    <- "#C0392B"
+col_white  <- "#2E86AB"   # blue stands in for white light (visible on plot)
+col_ribbon <- 0.15        # ribbon alpha
+col_pts    <- "#555555"
+col_yr     <- c("2019" = "#264653", "2020" = "#2A9D8F", "2021" = "#E9C46A",
+                "2022" = "#F4A261", "2023" = "#E76F51", "2024" = "#A8DADC")
 
-ggplot(data_env,
-       aes(factor(intensity),
-           detections,
-           fill = color)) +
-  geom_boxplot(outlier.alpha = 0.1) +
-  theme_classic()
+```
 
-ggplot(data_env,
-       aes(intensity,
-           detections)) +
-  geom_hex() +
-  facet_wrap(~ color) +
-  theme_classic()
+```{r}
+# =============================================================================
+# ── MAIN MODEL FIGURES ────────────────────────────────────────────────────────
+# Assumes your model object is called `m` and data is `data_env`
+# =============================================================================
+
+# ── Fig 1: Color × Intensity interaction (headline result) ───────────────────
+pred_ci <- ggpredict(models$m2, terms = c("intensity [10:100 by=1]", "color"))
+
+fig1 <- ggplot(pred_ci, aes(x = x, y = predicted,
+                             color = group, fill = group)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              alpha = col_ribbon, color = NA) +
+  geom_line(linewidth = 1.3) +
+  scale_color_manual(values = c(R = col_red, W = col_white),
+                     labels = c(R = "Red", W = "White"),
+                     name   = "Light color") +
+  scale_fill_manual(values  = c(R = col_red, W = col_white),
+                    guide   = "none") +
+  scale_x_continuous(breaks = c(10, 25, 50, 75, 100)) +
+  labs(
+    title    = "Light Color × Intensity Effect on Bat Detections",
+    subtitle = "Marginal predictions ± 95% CI; covariates held at mean/reference",
+    x        = "Light intensity (% of maximum)",
+    y        = "Predicted detections per night",
+    caption  = "Negative binomial GLMM · Site as random effect"
+  ) +
+  bat_theme +
+  theme(legend.position = c(0.88, 0.88))
+
+fig1
+```
+
+```{r}
+# ── Fig 2: Seasonal arc (Julian day quadratic) ───────────────────────────────
+pred_jd <- ggpredict(models$m2, terms = "jd [all]")
+
+fig2 <- ggplot(pred_jd, aes(x = x, y = predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              fill = "#888888", alpha = 0.2, color = NA) +
+  geom_line(color = "#333333", linewidth = 1.2) +
+  labs(
+    title    = "Seasonal Pattern in Bat Activity",
+    subtitle = "Marginal predictions across Julian day ± 95% CI",
+    x        = "Julian day",
+    y        = "Predicted detections per night"
+  ) +
+  bat_theme
+
+fig2
+```
+
+```{r}
+# ── Fig 3: Block effect ───────────────────────────────────────────────────────
+emm_block <- emmeans(models$m2, ~ block, type = "response")
+df_block  <- as.data.frame(emm_block) |>
+  mutate(block = factor(block, levels = sort(unique(block))))
+
+fig3 <- ggplot(df_block, aes(x = block, y = response)) +
+  geom_col(fill = "#DDEAF5", color = "#2E86AB", linewidth = 0.6, width = 0.55) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL),
+                width = 0.18, linewidth = 0.9, color = "#1A5276") +
+  labs(
+    title    = "Bat Activity by Experimental Block",
+    subtitle = "Marginal means ± 95% CI",
+    x        = "Block",
+    y        = "Predicted detections per night"
+  ) +
+  bat_theme
+
+fig3
+```
+
+```{r}
+# ── Fig 4: Year trend ─────────────────────────────────────────────────────────
+emm_yr <- emmeans(models$m2, ~ factor(year), type = "response")
+df_yr  <- as.data.frame(emm_yr) |>
+  mutate(year = factor(year))
+
+fig4 <- ggplot(df_yr, aes(x = year, y = response, color = year)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL),
+                width = 0.2, linewidth = 0.9) +
+  geom_line(aes(group = 1), color = "#AAAAAA", linewidth = 0.7,
+            linetype = "dashed") +
+  scale_color_manual(values = col_yr, guide = "none") +
+  labs(
+    title    = "Bat Activity Across Study Years",
+    subtitle = "Marginal means ± 95% CI",
+    x        = "Year",
+    y        = "Predicted detections per night"
+  ) +
+  bat_theme
+
+fig4
+```
+
+```{r}
+# ── Fig 5: Moon phase effect ──────────────────────────────────────────────────
+pred_moon <- ggpredict(models$m2, terms = "mean_phase [0:1 by=0.01]")
+
+fig5 <- ggplot(pred_moon, aes(x = x, y = predicted)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              fill = "#AAAACC", alpha = 0.25, color = NA) +
+  geom_line(color = "#444466", linewidth = 1.2) +
+  scale_x_continuous(breaks = seq(0, 1, by = 0.25),
+                     labels = c("New\n(0)", "0.25", "Half\n(0.5)",
+                                "0.75", "Full\n(1)")) +
+  labs(
+    title    = "Moon Phase Effect on Bat Activity",
+    subtitle = "Marginal predictions ± 95% CI",
+    x        = "Moon illumination",
+    y        = "Predicted detections per night"
+  ) +
+  bat_theme
+
+fig5
+```
+
+```{r}
+# ── Compose main figure panel ─────────────────────────────────────────────────
+main_panel <- (fig1 | fig2) / (fig3 | fig4) / (fig5 | plot_spacer()) +
+  plot_annotation(
+    title   = "Grand Teton Bat Light Experiment 2019–2024",
+    caption = "Negative binomial GLMM · (1|site) random intercept · emmeans post-hoc contrasts",
+    theme   = theme(
+      plot.title   = element_text(size = 15, face = "bold",
+                                  margin = margin(b = 4)),
+      plot.caption = element_text(color = "#999999", size = 8)
+    )
+  )
+
+ggsave("bat_main_model_figures.png", main_panel,
+       width = 14, height = 16, dpi = 300, bg = "white")
+cat("Saved: bat_main_model_figures.png\n")
+
+```
+
+```{r}
+# =============================================================================
+# ── SPECIES MODELS ────────────────────────────────────────────────────────────
+# Run one model per species; store results for unified figure
+# =============================================================================
+
+# Get species list from your data
+species_list <- unique(data_env$species)
+cat("Fitting models for", length(species_list), "species...\n")
+
+# ── Fit per-species models ────────────────────────────────────────────────────
+sp_models <- list()
+
+for (sp in species_list) {
+
+  dat_sp <- data_env |> filter(species == sp)
+
+  # Skip if too few detections to fit reliably
+  if (sum(dat_sp$detections) < 30 | nrow(dat_sp) < 20) {
+    cat("  Skipping", sp, "— insufficient data\n")
+    next
+  }
+
+  cat("  Fitting:", sp, "\n")
+
+  sp_models[[sp]] <- tryCatch(
+    glmmTMB(
+      detections ~ jd + I(jd^2) + mean_phase + pct_nonforest +
+        intensity * color + mean_brightness_site + block + year + (1 | site),
+      family  = nbinom2,
+      data    = dat_sp,
+      control = glmmTMBControl(optimizer = optim,
+                               optArgs   = list(method = "BFGS"))
+    ),
+    error = function(e) {
+      cat("  ERROR fitting", sp, ":", conditionMessage(e), "\n")
+      NULL
+    }
+  )
+}
+
+# Remove failed models
+sp_models <- sp_models[!sapply(sp_models, is.null)]
+cat("Successfully fit models for:", paste(names(sp_models), collapse = ", "), "\n")
+
+
+# ── Extract color × intensity emmeans for all species ─────────────────────────
+extract_color_intensity <- function(mod, sp_name) {
+  emm <- tryCatch(
+    emmeans(mod, ~ color | intensity,
+            at   = list(intensity = c(10, 50, 100)),
+            type = "response"),
+    error = function(e) NULL
+  )
+  if (is.null(emm)) return(NULL)
+  as.data.frame(emm) |> mutate(species = sp_name)
+}
+
+df_sp_ci <- map2_dfr(sp_models, names(sp_models), extract_color_intensity)
+
+
+# ── Extract intensity slopes per color per species (emtrends) ─────────────────
+extract_slopes <- function(mod, sp_name) {
+  slopes <- tryCatch(
+    emtrends(mod, ~ color, var = "intensity"),
+    error = function(e) NULL
+  )
+  if (is.null(slopes)) return(NULL)
+  as.data.frame(slopes) |> mutate(species = sp_name)
+}
+
+df_slopes <- map2_dfr(sp_models, names(sp_models), extract_slopes)
+
+
+# ── Extract overall species marginal means (color main effect) ────────────────
+extract_color_main <- function(mod, sp_name) {
+  emm <- tryCatch(
+    emmeans(mod, ~ color, type = "response"),
+    error = function(e) NULL
+  )
+  if (is.null(emm)) return(NULL)
+  as.data.frame(emm) |> mutate(species = sp_name)
+}
+
+df_sp_color <- map2_dfr(sp_models, names(sp_models), extract_color_main)
+
+```
+
+```{r}
+# =============================================================================
+# ── SPECIES FIGURES ───────────────────────────────────────────────────────────
+# =============================================================================
+
+# ── Fig S1: Color effect by species (dot plot) ────────────────────────────────
+df_sp_color_wide <- df_sp_color |>
+  select(species, color, response) |>
+  pivot_wider(names_from = color, values_from = response) |>
+  mutate(
+    ratio    = W / R,                      # >1 means more detections under white
+    direction = ifelse(ratio < 1, "White suppresses", "White enhances")
+  ) |>
+  arrange(ratio) |>
+  mutate(species = fct_inorder(species))
+
+fig_s1 <- ggplot(df_sp_color, aes(x = response,
+                                    y = fct_reorder(species, response),
+                                    color = color)) +
+  geom_line(aes(group = species), color = "#CCCCCC", linewidth = 0.8) +
+  geom_point(size = 3.5) +
+  geom_errorbar(aes(xmin = asymp.LCL, xmax = asymp.UCL),
+                width = 0.3, linewidth = 0.7) +
+  scale_color_manual(values = c(R = col_red, W = col_white),
+                     labels = c(R = "Red", W = "White"),
+                     name   = "Light color") +
+  labs(
+    title    = "Light Color Effect on Bat Detections by Species",
+    subtitle = "Marginal means ± 95% CI from per-species negative binomial GLMMs",
+    x        = "Predicted detections per night",
+    y        = NULL,
+    caption  = "Connected lines link red/white estimates for the same species"
+  ) +
+  bat_theme +
+  theme(legend.position = "top")
+
+fig_s1
+```
+
+```{r}
+# ── Fig S2: Intensity slopes by species and color ─────────────────────────────
+# Shows which species are most sensitive to increasing intensity
+fig_s2 <- ggplot(df_slopes,
+                  aes(x = intensity.trend,
+                      y = fct_reorder(species, intensity.trend),
+                      color = color)) +
+  geom_vline(xintercept = 0, linetype = "dashed",
+             color = "#AAAAAA", linewidth = 0.7) +
+  geom_point(position = position_dodge(0.5), size = 3.5) +
+  geom_errorbar(aes(xmin = asymp.LCL, xmax = asymp.UCL),
+                position = position_dodge(0.5),
+                width = 0.35, linewidth = 0.8) +
+  scale_color_manual(values = c(R = col_red, W = col_white),
+                     labels = c(R = "Red", W = "White"),
+                     name   = "Light color") +
+  labs(
+    title    = "Intensity Sensitivity by Species and Light Color",
+    subtitle = "Slope of detections ~ intensity (log scale) ± 95% CI",
+    x        = "Intensity slope (log detections per unit intensity)",
+    y        = NULL,
+    caption  = "Values left of zero = fewer detections at higher intensity"
+  ) +
+  bat_theme +
+  theme(legend.position = "top")
+
+fig_s2
+```
+
+```{r}
+# ── Fig S3: Color × intensity interaction curves, faceted by species ──────────
+# Smooth prediction lines per species — most visually rich figure
+pred_sp_list <- imap(sp_models, function(mod, sp_name) {
+  tryCatch(
+    ggpredict(mod, terms = c("intensity [10:100 by=2]", "color")) |>
+      as.data.frame() |>
+      mutate(species = sp_name),
+    error = function(e) NULL
+  )
+}) |> compact() |> bind_rows()
+
+fig_s3 <- ggplot(pred_sp_list,
+                  aes(x = x, y = predicted,
+                      color = group, fill = group)) +
+  #geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              #alpha = 0.15, color = NA) +
+  geom_line(linewidth = 1.0) +
+  facet_wrap(~ species, scales = "free_y", ncol = 3) +
+  scale_color_manual(values = c(R = col_red, W = col_white),
+                     labels = c(R = "Red", W = "White"),
+                     name   = "Light color") +
+  scale_fill_manual(values  = c(R = col_red, W = col_white),
+                    guide   = "none") +
+  labs(
+    title    = "Light Color × Intensity by Species",
+    subtitle = "Per-species GLMM marginal predictions ± 95% CI",
+    x        = "Light intensity (% of maximum)",
+    y        = "Predicted detections per night",
+    caption  = "Y-axis free per species — compare shape, not absolute values"
+  ) +
+  bat_theme +
+  theme(
+    legend.position  = "top",
+    strip.text       = element_text(face = "bold.italic", size = 9),
+    panel.spacing    = unit(0.8, "lines")
+  )
+
+fig_s3
+
+```
+
+```{r}
+# ── Fig S4: Heatmap — ratio of white:red detections by species × intensity ────
+# Signature figure: immediately shows which species/intensity combos are affected
+df_heat <- df_sp_ci |>
+  select(species, color, intensity, response) |>
+  pivot_wider(names_from = color, values_from = response) |>
+  mutate(
+    log2_ratio = log2(W / R),    # 0 = no difference; <0 = white suppresses
+    intensity  = factor(intensity, levels = c(10, 50, 100),
+                        labels = c("Low (10%)", "Mid (50%)", "High (100%)"))
+  )
+
+fig_s4 <- ggplot(df_heat,
+                  aes(x = intensity,
+                      y = fct_reorder(species, log2_ratio, .fun = mean),
+                      fill = log2_ratio)) +
+  geom_tile(color = "white", linewidth = 0.5) +
+  geom_text(aes(label = round(log2_ratio, 2)),
+            color = "white", size = 3.2, fontface = "bold") +
+  scale_fill_gradient2(
+    low      = col_red,
+    mid      = "#F5F5F5",
+    high     = col_white,
+    midpoint = 0,
+    name     = "log₂(White/Red)"
+  ) +
+  labs(
+    title    = "White vs. Red Light Effect by Species and Intensity",
+    subtitle = "Negative values (red) = white light suppresses relative to red",
+    x        = "Light intensity",
+    y        = NULL,
+    caption  = "log₂ ratio of predicted detections: white ÷ red"
+  ) +
+  bat_theme +
+  theme(
+    panel.grid  = element_blank(),
+    axis.line   = element_blank(),
+    axis.ticks  = element_blank(),
+    legend.position = "right"
+  )
+
+fig_s4
+
 ```
 
 ```{r}
