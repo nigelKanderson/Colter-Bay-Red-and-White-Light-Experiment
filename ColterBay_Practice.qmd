@@ -823,6 +823,75 @@ ggplot(emm_df,
 ```
 
 ```{r}
+library(dplyr)
+library(ggplot2)
+
+data_env <- data_env %>%
+  mutate(
+    block = factor(block,
+                   levels = c('three', 'seven', 'zero'))
+  )
+
+overall_plot <- data_env %>%
+  group_by(block, color) %>%
+  summarise(
+    mean_det = mean(detections, na.rm = TRUE),
+    se = sd(detections, na.rm = TRUE) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+ggplot(overall_plot,
+       aes(x = factor(block),
+           y = mean_det,
+           color = color,
+           group = color)) +
+  geom_point(size = 3) +
+  geom_line(linewidth = 1) +
+  geom_errorbar(
+    aes(ymin = mean_det - se,
+        ymax = mean_det +se),
+    width = 0.1
+  ) +
+  theme_classic() +
+  labs(
+    x = "Block",
+    y = 'Mean detections',
+    color = 'Light color'
+  )
+```
+
+```{r}
+species_plot <- data_env %>%
+  group_by(species, block, color) %>%
+  summarise(
+    mean_det = mean(detections, na.rm = TRUE),
+    se = sd(detections, na.rm = TRUE) / sqrt(n()),
+    .groups = 'drop'
+  )
+
+ggplot(species_plot,
+       aes(x = factor(block),
+           y = mean_det,
+           color = color,
+           group = color)) +
+  geom_point(size = 2) +
+  geom_line() +
+  geom_errorbar(
+    aes(ymin = mean_det - se,
+        ymax = mean_det + se),
+    width = 0.1
+  ) +
+  facet_wrap(~ species,
+             scales = 'free_y') +
+  theme_classic() +
+  labs(
+    x = 'Block',
+    y = 'Mean detections',
+    color = 'Light color'
+  )
+```
+
+```{r}
 source("05_data_exploration.R")
 ```
 
