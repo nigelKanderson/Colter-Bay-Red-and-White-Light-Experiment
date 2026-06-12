@@ -135,6 +135,8 @@ data_env <- data_env %>%
   filter(species != "Labo")
 data_env <- data_env %>%
   filter(species != "Coto")
+data_env <- data_env %>%
+  filter(species != "Anpa")
 
 ```
 
@@ -604,6 +606,67 @@ fig_s4 <- ggplot(df_heat,
 
 fig_s4
 
+```
+
+```{r}
+# ── Compose and save species panel ────────────────────────────────────────────
+sp_panel_1 <- (fig_s1 | fig_s2) +
+  plot_annotation(
+    title = "Species-Level Light Effects — Grand Teton 2019–2024",
+    theme = theme(plot.title = element_text(size = 14, face = "bold"))
+  )
+
+ggsave("bat_species_panel1.png", sp_panel_1,
+       width = 14, height = 7, dpi = 300, bg = "white")
+cat("Saved: bat_species_panel1.png\n")
+
+ggsave("bat_species_faceted.png", fig_s3,
+       width = 14, height = ceiling(length(sp_models) / 3) * 3.5,
+       dpi = 300, bg = "white")
+cat("Saved: bat_species_faceted.png\n")
+
+ggsave("bat_species_heatmap.png", fig_s4,
+       width = 9, height = 6, dpi = 300, bg = "white")
+cat("Saved: bat_species_heatmap.png\n")
+
+```
+
+```{r}
+# =============================================================================
+# ── POST-HOC TABLES (export for supplement) ───────────────────────────────────
+# =============================================================================
+
+# Main model: intensity slopes by color
+slopes_main <- emtrends(models$m2, ~ color, var = "intensity") |>
+  as.data.frame() |>
+  mutate(across(where(is.numeric), \(x) round(x, 4)))
+write_csv(slopes_main, "posthoc_intensity_slopes_main.csv")
+
+# Main model: color contrast at anchor intensities
+contrast_main <- emmeans(models$m2, ~ color | intensity,
+                          at = list(intensity = c(100,80,85,65,70,90,95,75,10,50,30,60)),
+                          type = "response") |>
+  pairs() |>
+  as.data.frame() |>
+  mutate(across(where(is.numeric), \(x) round(x, 4)))
+write_csv(contrast_main, "posthoc_color_by_intensity_main.csv")
+
+# Species: slopes table
+write_csv(df_slopes, "posthoc_intensity_slopes_by_species.csv")
+
+# Species: color contrasts at anchor intensities
+sp_contrasts <- df_sp_ci |>
+  group_by(species) |>
+  group_modify(~ {
+    # rebuild emmGrid from stored predictions isn't possible post-hoc,
+    # so flag this for manual extraction if needed
+    tibble(note = "Run pairs() on each sp_models[[sp]] emmeans object individually")
+  })
+
+cat("\nFor species-level pairwise contrasts, run:\n")
+cat("  pairs(emmeans(sp_models[['EPFU']], ~ color | intensity,\n")
+cat("        at = list(intensity = c(10,50,100)), type = 'response'))\n")
+cat("\nAll CSVs saved.\n")
 ```
 
 ```{r}
