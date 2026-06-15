@@ -46,7 +46,7 @@ run_models <- function(data) {
     detections ~
       #jd * color+
       jd +
-      jd^2 +
+      I(jd^2) +
       mean_phase +
       pct_nonforest +
       intensity * color +

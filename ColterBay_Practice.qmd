@@ -11,9 +11,17 @@ Quarto enables you to weave together content and executable code into a finished
 
 ## Colter Bay Red and White Light Experiment
 
-First I had to create a shortcut on the shared folder in google drive to be on mydrive. I then found that shared folder on mydrive in finder and copied the location url.
+\#####
 
 ```{r, warning = FALSE, message = FALSE}
+library(glmmTMB)
+library(emmeans)
+library(ggeffects)
+library(tidyverse)
+library(patchwork)
+library(vegan)
+library(mvabund)
+
 source("01_import_sonobat.R")
 table(data_raw$year)
 ```
@@ -30,10 +38,8 @@ data_env <- add_habitat(
   clean_data,
   forest_raster = nlcd_forest,
   buffer = 50
-)
-
-data_env <- add_moonlight(data_env)
-
+) |>
+  add_moonlight()
 
 ```
 
@@ -44,99 +50,35 @@ data_full <- readRDS('data_full.rds')
 
 data_env <- data_env %>%
   left_join(
-    lighting %>%
-      select(date, color, intensity, block),
+    lighting %>% select(date, color, intensity, block),
     by = "date"
-  )
-
-data_env <- data_env %>%
+  ) %>%
   mutate(
-    color = if_else(
-      year %in% c(2021, 2023) & is.na(color),
-      "R",
-      color
-    ),
-    intensity = if_else(
-      year %in% c(2021, 2023) & is.na(intensity),
-      75,
-      intensity
-    ),
-    block = if_else(
-      year %in% c(2021, 2023),
-      "zero",
-      block
-    )
-  )
-
-data_env <- data_env %>%
-  mutate(
-    color = factor(color),
-    site = factor(site),
-    #intensity = factor(intensity),
-    block = factor(block)
-  )
-
-data_env <- data_env %>%
-  filter(
-      !is.na(intensity),
-      !is.na(color)
-    ) 
-
-#data_env <- data_env %>%
-  #mutate(intensity_bin = case_when(
-    #intensity <= 30 ~ "low",
-    #intensity > 30 & intensity <= 70 ~ 'medium',
-    #intensity > 70 & intensity <= 85 ~ 'high',
-    #intensity > 85 ~ 'very high'
-  #))
+    color     = if_else(year %in% c(2021, 2023) & is.na(color), "R", color),
+    intensity = if_else(year %in% c(2021, 2023) & is.na(intensity), 75, intensity),
+    block     = if_else(year %in% c(2021, 2023), "zero", block),
+    color     = factor(color),
+    site      = factor(site),
+    block     = factor(block)
+  ) %>%
+  filter(!is.na(intensity), !is.na(color))
 ```
 
 ```{r}
-sky_brightness <- read.csv(
-  "sky_brightness_measurements.csv"
-)
-
-
-sky_brightness <- sky_brightness %>%
+sky_brightness <- read.csv("sky_brightness_measurements.csv") %>%
   mutate(
-     file_name_clean = 
-        tools::file_path_sans_ext(filename),
-     site = 
-        stringr::word(file_name_clean, 2, sep = "_"),
-  )
-
-sky_brightness <- sky_brightness %>%
-  mutate(site = toupper(site))
-
-sky_brightness <- sky_brightness %>%
+    file_name_clean      = tools::file_path_sans_ext(filename),
+    site                 = toupper(stringr::word(file_name_clean, 2, sep = "_"))
+  ) %>%
   group_by(site) %>%
-  summarise(
-    mean_brightness_site = mean(mean_brightness, na.rm = TRUE)
-  )
+  summarise(mean_brightness_site = mean(mean_brightness, na.rm = TRUE))
 
 data_env <- data_env %>%
-  left_join(
-    sky_brightness,
-    by = "site"
-  )
-data_env <- data_env %>%
+  left_join(sky_brightness, by = "site") %>%
   filter(
-      !is.na(mean_brightness_site)
-    ) 
-data_env <- data_env %>%
-  filter(species != "HiF")
-data_env <- data_env %>%
-  filter(species != "Myca")
-data_env <- data_env %>%
-  filter(species != "Myth")
-data_env <- data_env %>%
-  filter(species != "Myse")
-data_env <- data_env %>%
-  filter(species != "Labo")
-data_env <- data_env %>%
-  filter(species != "Coto")
-data_env <- data_env %>%
-  filter(species != "Anpa")
+    !is.na(mean_brightness_site),
+    !species %in% c("HiF", "Myca", "Myth", "Myse", "Labo", "Coto", "Anpa")
+  )
 
 ```
 
@@ -144,50 +86,35 @@ data_env <- data_env %>%
 source("06_run_models.R")
 models <- run_models(data_env)
 
-AIC(m0,m1,m2)
-
-anova(m0,m1)
-anova(m1,m2)
+AIC(m0, m1, m2)
+anova(m0, m1)
+anova(m1, m2)
 
 sim <- simulateResiduals(m2)
-
 plot(sim)
-
 testDispersion(sim)
-
 testZeroInflation(sim)
 
 summary(models$m2)
 ```
 
 ```{r}
-library(emmeans)
-
 emm_slopes <- emtrends(models$m2, ~ color, var = "intensity")
 print(emm_slopes)
 pairs(emm_slopes)
 confint(emm_slopes)
 
 emm_ci <- emmeans(models$m2, ~ color | intensity,
-                  at = list(intensity = c(100,80,85,65,70,90,95,75,10,50,30,60)),
+                  at   = list(intensity = c(100,80,85,65,70,90,95,75,10,50,30,60)),
                   type = "response")
 print(emm_ci)
 pairs(emm_ci)
 
 emm_block <- emmeans(models$m2, ~ block, type = "response")
-pairs(emm_block, adjust = 'tukey')
-
-#emm_year <- emmeans(models$m2, ~ year, type = 'response')
-#pairs(emm_year, adjust = 'tukey')
+pairs(emm_block, adjust = "tukey")
 ```
 
 ```{r}
-library(glmmTMB)
-library(emmeans)
-library(ggeffects)
-library(tidyverse)
-library(patchwork)
-
 # ── Shared theme ──────────────────────────────────────────────────────────────
 # Clean white-background publication style with warm field-science accent tones
 bat_theme <- theme_classic(base_size = 12) +
@@ -302,16 +229,17 @@ fig3
 
 ```{r}
 # ── Fig 4: Year trend ─────────────────────────────────────────────────────────
-emm_yr <- emmeans(models$m2, ~ factor(year), type = "response")
-df_yr  <- as.data.frame(emm_yr) |>
+df_yr <- as.data.frame(
+  emmeans(models$m2, ~ year, at = list(year = 2019:2024), type = "response")
+) |>
   mutate(year = factor(year))
-
-fig4 <- ggplot(df_yr, aes(x = year, y = response, color = year)) +
+ 
+fig4 <- ggplot(df_yr, aes(year, response, color = year)) +
+  geom_line(aes(x = year, y = response, group = 1), inherit.aes = FALSE,
+            color = "#AAAAAA", linewidth = 0.7, linetype = "dashed") +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL),
                 width = 0.2, linewidth = 0.9) +
-  geom_line(aes(group = 1), color = "#AAAAAA", linewidth = 0.7,
-            linetype = "dashed") +
   scale_color_manual(values = col_yr, guide = "none") +
   labs(
     title    = "Bat Activity Across Study Years",
@@ -320,7 +248,7 @@ fig4 <- ggplot(df_yr, aes(x = year, y = response, color = year)) +
     y        = "Predicted detections per night"
   ) +
   bat_theme
-
+ 
 fig4
 ```
 
@@ -368,209 +296,167 @@ cat("Saved: bat_main_model_figures.png\n")
 ```{r}
 # =============================================================================
 # ── SPECIES MODELS ────────────────────────────────────────────────────────────
-# Run one model per species; store results for unified figure
 # =============================================================================
-
-# Get species list from your data
+ 
 species_list <- unique(data_env$species)
 cat("Fitting models for", length(species_list), "species...\n")
-
-# ── Fit per-species models ────────────────────────────────────────────────────
+ 
+sp_formula <- detections ~ jd + I(jd^2) + mean_phase + pct_nonforest +
+  intensity * color + mean_brightness_site + block + year + (1 | site)
+ 
+fit_sp <- function(dat, sp) {
+  # Attempt 1: default nlminb
+  mod <- tryCatch(
+    glmmTMB(sp_formula, family = nbinom2, data = dat),
+    error = function(e) NULL
+  )
+  # Attempt 2: BFGS if Hessian not positive-definite
+  if (is.null(mod) || !isTRUE(mod$sdr$pdHess)) {
+    mod <- tryCatch(
+      glmmTMB(sp_formula, family = nbinom2, data = dat,
+              control = glmmTMBControl(optimizer = optim,
+                                       optArgs   = list(method = "BFGS"))),
+      error = function(e) NULL
+    )
+  }
+  if (is.null(mod) || !isTRUE(mod$sdr$pdHess))
+    cat("  WARNING:", sp, "— convergence uncertain after both optimizers\n")
+  mod
+}
+ 
 sp_models <- list()
-
+ 
 for (sp in species_list) {
-
   dat_sp <- data_env |> filter(species == sp)
-
-  # Skip if too few detections to fit reliably
+ 
   if (sum(dat_sp$detections) < 30 | nrow(dat_sp) < 20) {
     cat("  Skipping", sp, "— insufficient data\n")
     next
   }
-
+ 
   cat("  Fitting:", sp, "\n")
-
-  sp_models[[sp]] <- tryCatch(
-    glmmTMB(
-      detections ~ jd + I(jd^2) + mean_phase + pct_nonforest +
-        intensity * color + mean_brightness_site + block + year + (1 | site),
-      family  = nbinom2,
-      data    = dat_sp,
-      control = glmmTMBControl(optimizer = optim,
-                               optArgs   = list(method = "BFGS"))
-    ),
-    error = function(e) {
-      cat("  ERROR fitting", sp, ":", conditionMessage(e), "\n")
-      NULL
-    }
-  )
+  sp_models[[sp]] <- fit_sp(dat_sp, sp)
 }
-
-# Remove failed models
+ 
 sp_models <- sp_models[!sapply(sp_models, is.null)]
-cat("Successfully fit models for:", paste(names(sp_models), collapse = ", "), "\n")
-
-
-# ── Extract color × intensity emmeans for all species ─────────────────────────
-extract_color_intensity <- function(mod, sp_name) {
-  emm <- tryCatch(
-    emmeans(mod, ~ color | intensity,
-            at   = list(intensity = c(10, 50, 100)),
-            type = "response"),
-    error = function(e) NULL
-  )
-  if (is.null(emm)) return(NULL)
-  as.data.frame(emm) |> mutate(species = sp_name)
-}
-
-df_sp_ci <- map2_dfr(sp_models, names(sp_models), extract_color_intensity)
-
-
-# ── Extract intensity slopes per color per species (emtrends) ─────────────────
-extract_slopes <- function(mod, sp_name) {
-  slopes <- tryCatch(
-    emtrends(mod, ~ color, var = "intensity"),
-    error = function(e) NULL
-  )
-  if (is.null(slopes)) return(NULL)
-  as.data.frame(slopes) |> mutate(species = sp_name)
-}
-
-df_slopes <- map2_dfr(sp_models, names(sp_models), extract_slopes)
-
-
-# ── Extract overall species marginal means (color main effect) ────────────────
-extract_color_main <- function(mod, sp_name) {
-  emm <- tryCatch(
-    emmeans(mod, ~ color, type = "response"),
-    error = function(e) NULL
-  )
-  if (is.null(emm)) return(NULL)
-  as.data.frame(emm) |> mutate(species = sp_name)
-}
-
-df_sp_color <- map2_dfr(sp_models, names(sp_models), extract_color_main)
+cat("Successfully fit:", paste(names(sp_models), collapse = ", "), "\n")
 
 ```
 
 ```{r}
-# =============================================================================
-# ── SPECIES FIGURES ───────────────────────────────────────────────────────────
-# =============================================================================
+# ── Extract emmeans summaries for all species ─────────────────────────────────
+extract_color_intensity <- function(mod, sp_name) {
+  tryCatch(
+    as.data.frame(emmeans(mod, ~ color | intensity,
+                          at = list(intensity = c(10, 50, 100)),
+                          type = "response")) |> mutate(species = sp_name),
+    error = function(e) NULL
+  )
+}
 
-# ── Fig S1: Color effect by species (dot plot) ────────────────────────────────
-df_sp_color_wide <- df_sp_color |>
-  select(species, color, response) |>
-  pivot_wider(names_from = color, values_from = response) |>
-  mutate(
-    ratio    = W / R,                      # >1 means more detections under white
-    direction = ifelse(ratio < 1, "White suppresses", "White enhances")
-  ) |>
-  arrange(ratio) |>
-  mutate(species = fct_inorder(species))
+extract_slopes <- function(mod, sp_name) {
+  tryCatch(
+    as.data.frame(emtrends(mod, ~ color, var = "intensity")) |>
+      mutate(species = sp_name),
+    error = function(e) NULL
+  )
+}
 
-fig_s1 <- ggplot(df_sp_color, aes(x = response,
-                                    y = fct_reorder(species, response),
-                                    color = color)) +
+extract_color_main <- function(mod, sp_name) {
+  tryCatch(
+    as.data.frame(emmeans(mod, ~ color, type = "response")) |>
+      mutate(species = sp_name),
+    error = function(e) NULL
+  )
+}
+
+df_sp_ci    <- map2_dfr(sp_models, names(sp_models), extract_color_intensity)
+df_slopes   <- map2_dfr(sp_models, names(sp_models), extract_slopes)
+df_sp_color <- map2_dfr(sp_models, names(sp_models), extract_color_main)
+```
+
+```{r}
+# ── Fig S1: Color effect by species ───────────────────────────────────────────
+fig_s1 <- ggplot(df_sp_color,
+                  aes(x = response, y = fct_reorder(species, response), color = color)) +
   geom_line(aes(group = species), color = "#CCCCCC", linewidth = 0.8) +
   geom_point(size = 3.5) +
   geom_errorbar(aes(xmin = asymp.LCL, xmax = asymp.UCL),
                 width = 0.3, linewidth = 0.7) +
   scale_color_manual(values = c(R = col_red, W = col_white),
-                     labels = c(R = "Red", W = "White"),
-                     name   = "Light color") +
+                     labels = c(R = "Red", W = "White"), name = "Light color") +
   labs(
     title    = "Light Color Effect on Bat Detections by Species",
     subtitle = "Marginal means ± 95% CI from per-species negative binomial GLMMs",
-    x        = "Predicted detections per night",
-    y        = NULL,
+    x        = "Predicted detections per night", y = NULL,
     caption  = "Connected lines link red/white estimates for the same species"
   ) +
-  bat_theme +
-  theme(legend.position = "top")
+  bat_theme + theme(legend.position = "top")
 
 fig_s1
 ```
 
 ```{r}
-# ── Fig S2: Intensity slopes by species and color ─────────────────────────────
-# Shows which species are most sensitive to increasing intensity
+# ── Fig S2: Intensity slopes by species ───────────────────────────────────────
 fig_s2 <- ggplot(df_slopes,
-                  aes(x = intensity.trend,
-                      y = fct_reorder(species, intensity.trend),
+                  aes(x = intensity.trend, y = fct_reorder(species, intensity.trend),
                       color = color)) +
-  geom_vline(xintercept = 0, linetype = "dashed",
-             color = "#AAAAAA", linewidth = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "#AAAAAA", linewidth = 0.7) +
   geom_point(position = position_dodge(0.5), size = 3.5) +
   geom_errorbar(aes(xmin = asymp.LCL, xmax = asymp.UCL),
-                position = position_dodge(0.5),
-                width = 0.35, linewidth = 0.8) +
+                position = position_dodge(0.5), width = 0.35, linewidth = 0.8) +
   scale_color_manual(values = c(R = col_red, W = col_white),
-                     labels = c(R = "Red", W = "White"),
-                     name   = "Light color") +
+                     labels = c(R = "Red", W = "White"), name = "Light color") +
   labs(
     title    = "Intensity Sensitivity by Species and Light Color",
     subtitle = "Slope of detections ~ intensity (log scale) ± 95% CI",
-    x        = "Intensity slope (log detections per unit intensity)",
-    y        = NULL,
+    x        = "Intensity slope (log detections per unit intensity)", y = NULL,
     caption  = "Values left of zero = fewer detections at higher intensity"
   ) +
-  bat_theme +
-  theme(legend.position = "top")
+  bat_theme + theme(legend.position = "top")
 
 fig_s2
 ```
 
 ```{r}
-# ── Fig S3: Color × intensity interaction curves, faceted by species ──────────
-# Smooth prediction lines per species — most visually rich figure
+# ── Fig S3: Color × intensity curves faceted by species ───────────────────────
 pred_sp_list <- imap(sp_models, function(mod, sp_name) {
   tryCatch(
     ggpredict(mod, terms = c("intensity [10:100 by=2]", "color")) |>
-      as.data.frame() |>
-      mutate(species = sp_name),
+      as.data.frame() |> mutate(species = sp_name),
     error = function(e) NULL
   )
 }) |> compact() |> bind_rows()
 
 fig_s3 <- ggplot(pred_sp_list,
-                  aes(x = x, y = predicted,
-                      color = group, fill = group)) +
-  #geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
-              #alpha = 0.15, color = NA) +
+                  aes(x, predicted, color = group, fill = group)) +
   geom_line(linewidth = 1.0) +
   facet_wrap(~ species, scales = "free_y", ncol = 3) +
   scale_color_manual(values = c(R = col_red, W = col_white),
-                     labels = c(R = "Red", W = "White"),
-                     name   = "Light color") +
-  scale_fill_manual(values  = c(R = col_red, W = col_white),
-                    guide   = "none") +
+                     labels = c(R = "Red", W = "White"), name = "Light color") +
+  scale_fill_manual(values = c(R = col_red, W = col_white), guide = "none") +
   labs(
     title    = "Light Color × Intensity by Species",
-    subtitle = "Per-species GLMM marginal predictions ± 95% CI",
+    subtitle = "Per-species GLMM marginal predictions",
     x        = "Light intensity (% of maximum)",
     y        = "Predicted detections per night",
     caption  = "Y-axis free per species — compare shape, not absolute values"
   ) +
   bat_theme +
-  theme(
-    legend.position  = "top",
-    strip.text       = element_text(face = "bold.italic", size = 9),
-    panel.spacing    = unit(0.8, "lines")
-  )
+  theme(legend.position = "top", strip.text = element_text(face = "bold.italic", size = 9),
+        panel.spacing = unit(0.8, "lines"))
 
 fig_s3
 
 ```
 
 ```{r}
-# ── Fig S4: Heatmap — ratio of white:red detections by species × intensity ────
-# Signature figure: immediately shows which species/intensity combos are affected
-df_heat <- df_sp_ci |>
-  select(species, color, intensity, response) |>
-  pivot_wider(names_from = color, values_from = response) |>
+# ── Fig S4: White:red ratio heatmap ───────────────────────────────────────────
+df_heat <- df_sp_ci %>%
+  select(species, color, intensity, response) %>%
+  pivot_wider(names_from = color, values_from = response) %>%
   mutate(
-    log2_ratio = log2(W / R),    # 0 = no difference; <0 = white suppresses
+    log2_ratio = log2(W / R),
     intensity  = factor(intensity, levels = c(10, 50, 100),
                         labels = c("Low (10%)", "Mid (50%)", "High (100%)"))
   )
@@ -582,91 +468,65 @@ fig_s4 <- ggplot(df_heat,
   geom_tile(color = "white", linewidth = 0.5) +
   geom_text(aes(label = round(log2_ratio, 2)),
             color = "white", size = 3.2, fontface = "bold") +
-  scale_fill_gradient2(
-    low      = col_red,
-    mid      = "#F5F5F5",
-    high     = col_white,
-    midpoint = 0,
-    name     = "log₂(White/Red)"
-  ) +
+  scale_fill_gradient2(low = col_red, mid = "#F5F5F5", high = col_white,
+                       midpoint = 0, name = "log₂(White/Red)") +
   labs(
     title    = "White vs. Red Light Effect by Species and Intensity",
     subtitle = "Negative values (red) = white light suppresses relative to red",
-    x        = "Light intensity",
-    y        = NULL,
+    x        = "Light intensity", y = NULL,
     caption  = "log₂ ratio of predicted detections: white ÷ red"
   ) +
   bat_theme +
-  theme(
-    panel.grid  = element_blank(),
-    axis.line   = element_blank(),
-    axis.ticks  = element_blank(),
-    legend.position = "right"
-  )
+  theme(panel.grid = element_blank(), axis.line = element_blank(),
+        axis.ticks = element_blank(), legend.position = "right")
 
 fig_s4
 
 ```
 
 ```{r}
-# ── Compose and save species panel ────────────────────────────────────────────
-sp_panel_1 <- (fig_s1 | fig_s2) +
-  plot_annotation(
-    title = "Species-Level Light Effects — Grand Teton 2019–2024",
-    theme = theme(plot.title = element_text(size = 14, face = "bold"))
-  )
-
-ggsave("bat_species_panel1.png", sp_panel_1,
+# ── Save species panels ────────────────────────────────────────────────────────
+ggsave("bat_species_panel1.png",
+       (fig_s1 | fig_s2) + plot_annotation(
+         title = "Species-Level Light Effects — Grand Teton 2019–2024",
+         theme = theme(plot.title = element_text(size = 14, face = "bold"))
+       ),
        width = 14, height = 7, dpi = 300, bg = "white")
-cat("Saved: bat_species_panel1.png\n")
 
 ggsave("bat_species_faceted.png", fig_s3,
        width = 14, height = ceiling(length(sp_models) / 3) * 3.5,
        dpi = 300, bg = "white")
-cat("Saved: bat_species_faceted.png\n")
 
 ggsave("bat_species_heatmap.png", fig_s4,
        width = 9, height = 6, dpi = 300, bg = "white")
-cat("Saved: bat_species_heatmap.png\n")
 
+cat("Saved: bat_species_panel1.png, bat_species_faceted.png, bat_species_heatmap.png\n")
 ```
 
 ```{r}
 # =============================================================================
-# ── POST-HOC TABLES (export for supplement) ───────────────────────────────────
+# ── POST-HOC TABLES ───────────────────────────────────────────────────────────
 # =============================================================================
 
-# Main model: intensity slopes by color
-slopes_main <- emtrends(models$m2, ~ color, var = "intensity") |>
+emtrends(models$m2, ~ color, var = "intensity") |>
   as.data.frame() |>
-  mutate(across(where(is.numeric), \(x) round(x, 4)))
-write_csv(slopes_main, "posthoc_intensity_slopes_main.csv")
+  mutate(across(where(is.numeric), \(x) round(x, 4))) |>
+  write_csv("posthoc_intensity_slopes_main.csv")
 
-# Main model: color contrast at anchor intensities
-contrast_main <- emmeans(models$m2, ~ color | intensity,
-                          at = list(intensity = c(100,80,85,65,70,90,95,75,10,50,30,60)),
-                          type = "response") |>
+emmeans(models$m2, ~ color | intensity,
+        at = list(intensity = c(100,80,85,65,70,90,95,75,10,50,30,60)),
+        type = "response") |>
   pairs() |>
   as.data.frame() |>
-  mutate(across(where(is.numeric), \(x) round(x, 4)))
-write_csv(contrast_main, "posthoc_color_by_intensity_main.csv")
+  mutate(across(where(is.numeric), \(x) round(x, 4))) |>
+  write_csv("posthoc_color_by_intensity_main.csv")
 
-# Species: slopes table
 write_csv(df_slopes, "posthoc_intensity_slopes_by_species.csv")
 
-# Species: color contrasts at anchor intensities
-sp_contrasts <- df_sp_ci |>
-  group_by(species) |>
-  group_modify(~ {
-    # rebuild emmGrid from stored predictions isn't possible post-hoc,
-    # so flag this for manual extraction if needed
-    tibble(note = "Run pairs() on each sp_models[[sp]] emmeans object individually")
-  })
-
-cat("\nFor species-level pairwise contrasts, run:\n")
+cat("All CSVs saved.\n")
+cat("For species-level pairwise contrasts, run:\n")
 cat("  pairs(emmeans(sp_models[['EPFU']], ~ color | intensity,\n")
 cat("        at = list(intensity = c(10,50,100)), type = 'response'))\n")
-cat("\nAll CSVs saved.\n")
 ```
 
 ```{r}
@@ -677,571 +537,105 @@ occurrences <- run_thresholds(data_env, thresholds = c(30, 60, 120, 300))
 glimpse(occurrences)
 
 occurrences %>%
-  ggplot(aes(threshold_sec, occurrences, group = site, color = site)) + 
+  ggplot(aes(threshold_sec, occurrences, group = site, color = site)) +
   geom_line(alpha = 0.3)
 
 occurrences %>%
   group_by(threshold_sec) %>%
   summarise(total_occurrences = sum(occurrences))
 
-data_30 <- occurrences %>%
-  filter(threshold_sec == 30)
-
-data_60 <- occurrences %>%
-  filter(threshold_sec == 60)
-
-data_120 <- occurrences %>%
-  filter(threshold_sec == 120)
-
-data_300 <- occurrences %>%
-  filter(threshold_sec == 300)
-
-site_env <- data_env %>%
-  distinct(site, pct_forest)
-
 occurrences <- occurrences %>%
-  left_join(site_env, by = "site")
+  left_join(data_env %>% distinct(site, pct_forest), by = "site")
 ```
 
 ```{r}
-library(dplyr)
-library(tidyr)
-
-effort <- data_env %>%
-  group_by(site, year, color, intensity) %>%
-  summarise(
-    nights = n_distinct(date),
-    .groups = "drop"
-  )
-
-comm_dat <- data_env %>%
-  group_by(site,
-           year,
-           color,
-           intensity,
-           species,
-           block) %>%
-  summarise(
-    detections = sum(detections),
-    .groups = "drop"
-  )
-
-comm_dat <- comm_dat %>%
-  left_join(
-    effort,
-    by = c("site", 'year', 'color', 'intensity')
-  ) %>%
-  mutate(
-    det_per_night = detections/nights
-  )
-
+# =============================================================================
+# ── COMMUNITY ANALYSIS ────────────────────────────────────────────────────────
+# =============================================================================
+source("08_community_analysis.R")
+community <- run_community_analysis(data_env, bat_theme, col_red, col_white)
 ```
 
 ```{r}
-community_matrix <- comm_dat %>%
-  select(site,
-         year,
-         color,
-         intensity,
-         species,
-         block,
-         det_per_night
-         ) %>%
-  pivot_wider(
-    names_from = species,
-    values_from = det_per_night,
-    values_fill = 0
-  )
+# ── NMDS stress
+cat("NMDS stress:", round(community$nmds$stress, 3), "\n")
 
-env <- data_env %>%
-  group_by(site,
-           year,
-           color,
-           intensity) %>%
-  summarise(
-    mean_phase = first(mean_phase),
-    pct_nonforest = first(pct_nonforest),
-    mean_brightness_site = first(mean_brightness_site),
-    .groups = "drop"
-  )
+# ── PERMANOVA
+community$perm
 
-community_matrix <- community_matrix %>%
-  left_join(
-    env,
-    by = c('site',
-           'year',
-           'color',
-           'intensity')
-  )
+# ── Dispersion test (homogeneity of Bray–Curtis distances by color)
+community$disp_test
 
-species_cols <- setdiff(
-  names(community_matrix),
-  c('site',
-    'year',
-    'color',
-    'intensity',
-    'mean_phase',
-    'pct_nonforest',
-    'mean_brightness_site',
-    'block')
-)
+# ── dbRDA — global and marginal tests
+community$db_global
+community$db_margin
 
-comm <- community_matrix %>%
-  select(all_of(species_cols))
-
-env <- community_matrix %>%
-  select(site,
-         year,
-         color,
-         intensity,
-         mean_phase,
-         pct_nonforest,
-         mean_brightness_site,
-         block)
+# ── mvabund — multivariate GLM
+community$mv_anova
 ```
 
 ```{r}
-library(vegan)
-
-nmds <- metaMDS(
-  comm,
-  distance = 'bray',
-  k = 2,
-  trymax = 100
-)
-
-nmds$stress
+# ── Fig C1: dbRDA ordination
+community$fig_c1
 ```
 
 ```{r}
-
-adonis2(
-  comm ~ color +
-    intensity +
-    mean_phase +
-    pct_nonforest +
-    mean_brightness_site +
-    block +
-    (1|year),
-  data = env,
-  method = 'bray',
-  permutatins = 9999
-)
-
-bc <- vegdist(comm, method = 'bray')
-
-bd <- betadisper(bc, group = env$color)
-
-anova(bd)
+# ── Fig C2: Species activity heatmap
+community$fig_c2
 ```
 
 ```{r}
-db <- dbrda(
-  comm ~ color +
-    intensity +
-    mean_phase +
-    pct_nonforest +
-    mean_brightness_site +
-    block +
-    Condition(year),
-  data = env,
-  distance = 'bray'
-)
-
-anova(db, permutations = 9999)
-
-anova(db,
-      by = 'margin',
-      permutations = 9999)
-
-```
-
-```{r}
-library(vegan)
-library(ggplot2)
-library(dplyr)
-
-site_scores <- as.data.frame(scores(db, display = 'sites'))
-
-site_scores <- bind_cols(site_scores, env)
-
-ggplot(site_scores,
-       aes(dbRDA1,
-           dbRDA2,
-           color = color,
-           size = intensity)) +
-  geom_point(alpha = 0.8, size = 2) +
-  #stat_ellipse(level = 0.95) +
-  facet_wrap(~ year) +
-  theme_classic()
-```
-
-```{r}
-env_scores <- as.data.frame(scores(db, display='bp'))
-env_scores$variable <- rownames(env_scores)
-
-ggplot(site_scores,
-       aes(dbRDA1,
-           dbRDA2,
-           color = color)) +
-  geom_point(size = 3) +
-  
-  geom_segment(
-    data = env_scores,
-    aes(x = 0,
-        y = 0,
-        xend = dbRDA1,
-        yend = dbRDA2),
-    inherit.aes = FALSE,
-    arrow = arrow(length = unit(0.2, 'cm'))
-  ) +
-  
-  geom_text(
-    data = env_scores,
-    aes(dbRDA1,
-        dbRDA2,
-        label = variable),
-    inherit.aes = FALSE
-  ) +
-  theme_classic()
-```
-
-```{r}
-heat_dat <- comm_dat %>%
-  group_by(species,
-           color,
-           block) %>%
-  summarise(
-    mean_det = mean(det_per_night),
-    .groups = 'drop'
-  )
-
-ggplot(
-  heat_dat,
-  aes(interaction(color, block),
-      species,
-      fill = mean_det)
-) +
-  geom_tile() +
-  theme_classic()
-```
-
-```{r}
-library(mvabund)
-
-Y <- mvabund(comm)
-
-fit <- manyglm(
-  Y ~ color +
-    intensity +
-    mean_phase +
-    pct_nonforest +
-    mean_brightness_site +
-    block +
-    year,
-  family = "negative.binomial",
-  data = env
-)
-
-anova(
-  fit,
-  p.uni = "adjusted",
-  nBoot = 9999
-)
-```
-
-```{r}
-data_env %>%
-  group_by(species) %>%
-  summarise(
-    total_detections = sum(detections),
-    n_samples = n(),
-    .groups = 'drop'
-  ) %>%
-  arrange(total_detections)
-```
-
-```{r}
-comm_dat %>%
-  group_by(species) %>%
-  summarise(
-    occupancy = sum(det_per_night > 0),
-    .groups = "drop"
-  ) %>%
-  arrange(occupancy)
-```
-
-```{r}
-library(dplyr)
-library(tidyr)
-
-heat_dat <- data_env %>%
-  group_by(species, intensity, color) %>%
-  summarise(
-    mean_det = mean(detections),
-    .groups = "drop"
-  )%>%
-  group_by(species) %>%
-  mutate(mean_det_z = scale(mean_det))%>%
-  ungroup()
-
-library(ggplot2)
-
-ggplot(heat_dat,
-       aes(x = factor(intensity),
-           y = species,
-           fill = mean_det_z)) +
-  geom_tile() +
-  scale_fill_gradient2(
-    low = 'blue',
-    mid = 'white',
-    high = 'red'
-  ) +
-  theme_classic() +
-  labs(x = 'Light Intensity',
-       y = 'Species',
-       fill = 'Relative Activity')
-
-
-```
-
-```{r}
-library(mvabund)
-
-newdat <- data_frame(
-  intensity = seq(min(data_env$intensity),
-                  max(data_env$intensity),
-                  length.out = 100),
-  color = 'W',
-  mean_phase = mean(data_env$mean_phase, na.rm = TRUE),
-  pct_nonforest = mean(data_env$pct_nonforest, na.rm = TRUE),
-  mean_brightness_site = mean(data_env$mean_brightness_site, na.rm = TRUE),
-  year = 2020
-)
-
-pred <- predict(fit, newdata = newdat, type = 'response')
-
-pred_df <- as.data.frame(pred) %>%
-  mutate(intensity = newdat$intensity) %>%
-  pivot_longer(-intensity,
-               names_to = 'species',
-               values_to = 'predicted')
-
-ggplot(pred_df,
-       aes(x = intensity,
-           y = predicted,
-           color = species)) +
-  geom_line() +
-  theme_classic () +
-  labs(y = 'Predicted detections')
-```
-
-```{r}
-ggplot(heat_dat,
-       aes(factor(intensity),
-           species,
-           fill = mean_det)) +
-  geom_tile() +
-  facet_wrap(~ color)
-```
-
-```{r}
-species_plot <- data_env %>%
-  group_by(species, intensity) %>%
-  summarise(
-    mean_det = mean(detections),
-    se = sd(detections)/sqrt(n()),
-    .groups = 'drop'
-  )
-
-ggplot(species_plot,
-       aes(intensity, mean_det)) +
-  geom_point() +
-  geom_line() +
-  facet_wrap(~ species, scales = 'free_y') +
-  theme_classic() +
-  labs(
-    x = 'Light intensity',
-    y = 'Mean detections'
-  )
-```
-
-```{r}
-ggplot(data_env,
-       aes(intensity,
-           detections)) +
-  geom_smooth(
-    method = 'loess',
-    se = TRUE
-  ) +
-  facet_wrap(~ species,
-             scales = 'free_y') +
-  theme_classic()
-```
-
-```{r}
-ggplot(data_env,
-       aes(intensity,
-           detections,
-           color = color)) +
-  geom_smooth(
-    method = 'loess',
-    se = TRUE
-  ) +
-  facet_wrap(~ species,
-             scales = 'free_y') +
-  theme_classic()
-```
-
-```{r}
-species_totals <- data_env %>%
-  group_by(species, color) %>%
-  summarise(
-    total_det = sum(detections),
-    .groups = 'drop'
-  )
-
-library(ggplot2)
-
-ggplot(species_totals,
-       aes(x = color,
-           y = total_det,
-           fill = color)) +
-  geom_col() +
-  facet_wrap(~ species, scales = 'free_y') +
-  theme_classic() +
-  labs(
-    x = 'Light color',
-    y = 'Total detections'
-  )
-```
-
-```{r}
-ggplot(species_totals,
-       aes(total_det,
-           species,
-           fill = color)) +
-  geom_col(position = 'dodge') +
-  theme_classic() +
-  labs(
-    x = 'Total detections',
-    y = 'Species'
-  )
-```
-
-```{r}
-species_prop <- data_env %>%
-  group_by(species, color) %>%
-  summarise(total_det = sum(detections),
-            .groups = 'drop') %>%
-  group_by(species) %>%
-  mutate(prop = total_det / sum(total_det))
-
-ggplot(species_prop,
-       aes(color, prop, fill = color)) +
-  geom_col() +
-  facet_wrap(~ species) +
-  theme_classic()
-```
-
-```{r}
-
-epfu <- data_env %>%
-  filter(species == 'Laci')
-
-m_epfu <- glmmTMB(
-  detections ~ color*intensity + jd + jd^2 + mean_phase + mean_brightness_site + pct_nonforest + (1|year) + (1|site),
-  family = nbinom2,
-  data = epfu
-)
-
-summary(m_epfu)
-```
-
-```{r}
-m_species <- glmmTMB(
-  detections ~ color * species +
-    species * intensity +
-    mean_phase +
-    pct_nonforest +
-    mean_brightness_site +
-    jd +
-    jd^2 +
-    (1|year) +
-    (1|site),
-  family = nbinom2,
-  data = data_env
-)
-
-car::Anova(m_species)
-```
-
-```{r}
-library(dplyr)
-library(ggplot2)
-
 data_env <- data_env %>%
-  mutate(
-    block = factor(block,
-                   levels = c('three', 'seven', 'zero'))
-  )
+  mutate(block = factor(block, levels = c("three", "seven", "zero")))
 
-overall_plot <- data_env %>%
+# ── Fig C3: Block × color — overall ──────────────────────────────────────────
+data_env %>%
   group_by(block, color) %>%
   summarise(
     mean_det = mean(detections, na.rm = TRUE),
-    se = sd(detections, na.rm = TRUE) / sqrt(n()),
-    .groups = 'drop'
-  )
-
-ggplot(overall_plot,
-       aes(x = factor(block),
-           y = mean_det,
-           color = color,
-           group = color)) +
-  geom_point(size = 3) +
+    se       = sd(detections, na.rm = TRUE) / sqrt(n()),
+    .groups  = "drop"
+  ) %>%
+  ggplot(aes(block, mean_det, color = color, group = color)) +
   geom_line(linewidth = 1) +
-  geom_errorbar(
-    aes(ymin = mean_det - se,
-        ymax = mean_det +se),
-    width = 0.1
-  ) +
-  theme_classic() +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = mean_det - se, ymax = mean_det + se), width = 0.1) +
+  scale_color_manual(values = c(R = col_red, W = col_white),
+                     labels = c(R = "Red", W = "White"), name = "Light color") +
   labs(
-    x = "Block",
-    y = 'Mean detections',
-    color = 'Light color'
-  )
+    title    = "Mean Bat Activity by Block and Light Color",
+    subtitle = "Raw means ± SE",
+    x        = "Block", y = "Mean detections per night"
+  ) +
+  bat_theme +
+  theme(legend.position = "top")
 ```
 
 ```{r}
-species_plot <- data_env %>%
+# ── Fig C4: Block × color — by species ───────────────────────────────────────
+data_env %>%
   group_by(species, block, color) %>%
   summarise(
     mean_det = mean(detections, na.rm = TRUE),
-    se = sd(detections, na.rm = TRUE) / sqrt(n()),
-    .groups = 'drop'
-  )
-
-ggplot(species_plot,
-       aes(x = factor(block),
-           y = mean_det,
-           color = color,
-           group = color)) +
+    se       = sd(detections, na.rm = TRUE) / sqrt(n()),
+    .groups  = "drop"
+  ) %>%
+  ggplot(aes(block, mean_det, color = color, group = color)) +
+  geom_line(linewidth = 0.8) +
   geom_point(size = 2) +
-  geom_line() +
-  geom_errorbar(
-    aes(ymin = mean_det - se,
-        ymax = mean_det + se),
-    width = 0.1
-  ) +
-  facet_wrap(~ species,
-             scales = 'free_y') +
-  theme_classic() +
+  geom_errorbar(aes(ymin = mean_det - se, ymax = mean_det + se), width = 0.15) +
+  scale_color_manual(values = c(R = col_red, W = col_white),
+                     labels = c(R = "Red", W = "White"), name = "Light color") +
+  facet_wrap(~ species, scales = "free_y") +
   labs(
-    x = 'Block',
-    y = 'Mean detections',
-    color = 'Light color'
+    title    = "Mean Bat Activity by Block, Color, and Species",
+    subtitle = "Raw means ± SE",
+    x        = "Block", y = "Mean detections per night"
+  ) +
+  bat_theme +
+  theme(
+    legend.position = "top",
+    strip.text      = element_text(face = "bold.italic", size = 9)
   )
 ```
 
