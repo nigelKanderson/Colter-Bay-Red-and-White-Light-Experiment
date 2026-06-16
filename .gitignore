@@ -12,6 +12,8 @@
 *.ARW
 
 output/*.png
+ColterBay_Practice_files/
+ColterBay_Practice.html
 
 __pycache__/
 *.pyc

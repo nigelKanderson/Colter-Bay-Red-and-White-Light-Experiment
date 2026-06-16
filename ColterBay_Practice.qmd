@@ -22,17 +22,17 @@ library(patchwork)
 library(vegan)
 library(mvabund)
 
-source("01_import_sonobat.R")
+source("R/01_import_sonobat.R")
 table(data_raw$year)
 ```
 
 ```{r}
-source("02_clean_data.R")
+source("R/02_clean_data.R")
 clean_data <- clean_data(data_raw)
 ```
 
 ```{r}
-source("03_extract_habitat.R")
+source("R/03_extract_habitat.R")
 
 data_env <- add_habitat(
   clean_data,
@@ -44,7 +44,7 @@ data_env <- add_habitat(
 ```
 
 ```{r}
-source("07_add_light_treatment.R")
+source("R/07_add_light_treatment.R")
 
 data_full <- readRDS('data_full.rds')
 
@@ -89,7 +89,7 @@ data_env <- data_env %>%
 ```
 
 ```{r}
-source("06_run_models.R")
+source("R/06_run_models.R")
 models <- run_models(data_env)
 
 AIC(m0, m1, m2)
@@ -536,7 +536,7 @@ cat("        at = list(intensity = c(10,50,100)), type = 'response'))\n")
 ```
 
 ```{r}
-source("04_Occurrence_Thresholds.R")
+source("R/04_Occurrence_Thresholds.R")
 
 occurrences <- run_thresholds(data_env, thresholds = c(30, 60, 120, 300))
 
@@ -558,7 +558,7 @@ occurrences <- occurrences %>%
 # =============================================================================
 # ── COMMUNITY ANALYSIS ────────────────────────────────────────────────────────
 # =============================================================================
-source("08_community_analysis.R")
+source("R/08_community_analysis.R")
 community <- run_community_analysis(data_env, bat_theme, col_red, col_white)
 ```
 
@@ -646,7 +646,7 @@ data_env %>%
 ```
 
 ```{r}
-source("05_data_exploration.R")
+source("R/05_data_exploration.R")
 ```
 
 At the end of every day:
