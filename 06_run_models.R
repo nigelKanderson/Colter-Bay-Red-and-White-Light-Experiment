@@ -51,8 +51,8 @@ run_models <- function(data) {
       pct_nonforest +
       intensity * color +
       mean_brightness_site +
-      block +
-      year +
+      switching_interval +
+      (1|year) +
       (1|site),
     data = model_data,
     family = nbinom2()

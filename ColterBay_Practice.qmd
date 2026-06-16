@@ -62,6 +62,18 @@ data_env <- data_env %>%
     block     = factor(block)
   ) %>%
   filter(!is.na(intensity), !is.na(color))
+
+data_env <- data_env %>%
+  mutate(
+    control_year     = year %in% c(2021, 2023),
+    switching_interval = case_when(
+      control_year        ~ "control",
+      block == "three"    ~ "three",
+      block == "seven"    ~ "seven"
+    ),
+    switching_interval = factor(switching_interval,
+                                levels = c("seven", "three", "control"))
+  )
 ```
 
 ```{r}
@@ -110,7 +122,7 @@ emm_ci <- emmeans(models$m2, ~ color | intensity,
 print(emm_ci)
 pairs(emm_ci)
 
-emm_block <- emmeans(models$m2, ~ block, type = "response")
+emm_block <- emmeans(models$m2, ~ switching_interval, type = "response")
 pairs(emm_block, adjust = "tukey")
 ```
 
@@ -208,11 +220,11 @@ fig2
 
 ```{r}
 # ── Fig 3: Block effect ───────────────────────────────────────────────────────
-emm_block <- emmeans(models$m2, ~ block, type = "response")
+emm_block <- emmeans(models$m2, ~ switching_interval, type = "response")
 df_block  <- as.data.frame(emm_block) |>
-  mutate(block = factor(block, levels = sort(unique(block))))
+  mutate(block = factor(switching_interval, levels = sort(unique(switching_interval))))
 
-fig3 <- ggplot(df_block, aes(x = block, y = response)) +
+fig3 <- ggplot(df_block, aes(x = switching_interval, y = response)) +
   geom_col(fill = "#DDEAF5", color = "#2E86AB", linewidth = 0.6, width = 0.55) +
   geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL),
                 width = 0.18, linewidth = 0.9, color = "#1A5276") +
@@ -302,7 +314,7 @@ species_list <- unique(data_env$species)
 cat("Fitting models for", length(species_list), "species...\n")
  
 sp_formula <- detections ~ jd + I(jd^2) + mean_phase + pct_nonforest +
-  intensity * color + mean_brightness_site + block + year + (1 | site)
+  intensity * color + mean_brightness_site + switching_interval + (1|year) + (1 | site)
  
 fit_sp <- function(dat, sp) {
   # Attempt 1: default nlminb
