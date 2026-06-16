@@ -48,7 +48,7 @@ add_habitat <- function(data, forest_raster, buffer = 50) {
   data_out <- data %>%
     left_join(sites_env, by = "site")
   
-  saveRDS(data_out, "data_out.rds")
+  saveRDS(data_out, "data/data_out.rds")
   
   return(data_out)
 }

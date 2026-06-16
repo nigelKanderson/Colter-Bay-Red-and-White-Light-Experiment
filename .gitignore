@@ -11,7 +11,7 @@
 *.NEF
 *.ARW
 
-output/*.png
+output/figures/
 ColterBay_Practice_files/
 ColterBay_Practice.html
 

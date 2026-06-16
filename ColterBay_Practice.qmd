@@ -46,7 +46,7 @@ data_env <- add_habitat(
 ```{r}
 source("R/07_add_light_treatment.R")
 
-data_full <- readRDS('data_full.rds')
+data_full <- readRDS('data/data_full.rds')
 
 data_env <- data_env %>%
   left_join(
@@ -293,9 +293,10 @@ main_panel <- (fig1 | fig2) / (fig3 | fig4) / (fig5 | plot_spacer()) +
     )
   )
 
-ggsave("bat_main_model_figures.png", main_panel,
+dir.create("output/figures", recursive = TRUE, showWarnings = FALSE)
+ggsave("output/figures/bat_main_model_figures.png", main_panel,
        width = 14, height = 16, dpi = 300, bg = "white")
-cat("Saved: bat_main_model_figures.png\n")
+cat("Saved: output/figures/bat_main_model_figures.png\n")
 
 ```
 
@@ -492,21 +493,21 @@ fig_s4
 
 ```{r}
 # ── Save species panels ────────────────────────────────────────────────────────
-ggsave("bat_species_panel1.png",
+ggsave("output/figures/bat_species_panel1.png",
        (fig_s1 | fig_s2) + plot_annotation(
          title = "Species-Level Light Effects — Grand Teton 2019–2024",
          theme = theme(plot.title = element_text(size = 14, face = "bold"))
        ),
        width = 14, height = 7, dpi = 300, bg = "white")
 
-ggsave("bat_species_faceted.png", fig_s3,
+ggsave("output/figures/bat_species_faceted.png", fig_s3,
        width = 14, height = ceiling(length(sp_models) / 3) * 3.5,
        dpi = 300, bg = "white")
 
-ggsave("bat_species_heatmap.png", fig_s4,
+ggsave("output/figures/bat_species_heatmap.png", fig_s4,
        width = 9, height = 6, dpi = 300, bg = "white")
 
-cat("Saved: bat_species_panel1.png, bat_species_faceted.png, bat_species_heatmap.png\n")
+cat("Saved: output/figures/bat_species_panel1.png, bat_species_faceted.png, bat_species_heatmap.png\n")
 ```
 
 ```{r}
@@ -517,7 +518,7 @@ cat("Saved: bat_species_panel1.png, bat_species_faceted.png, bat_species_heatmap
 emtrends(models$m2, ~ color, var = "intensity") |>
   as.data.frame() |>
   mutate(across(where(is.numeric), \(x) round(x, 4))) |>
-  write_csv("posthoc_intensity_slopes_main.csv")
+  write_csv("output/posthoc_intensity_slopes_main.csv")
 
 emmeans(models$m2, ~ color | intensity,
         at = list(intensity = c(100,80,85,65,70,90,95,75,10,50,30,60)),
@@ -525,9 +526,9 @@ emmeans(models$m2, ~ color | intensity,
   pairs() |>
   as.data.frame() |>
   mutate(across(where(is.numeric), \(x) round(x, 4))) |>
-  write_csv("posthoc_color_by_intensity_main.csv")
+  write_csv("output/posthoc_color_by_intensity_main.csv")
 
-write_csv(df_slopes, "posthoc_intensity_slopes_by_species.csv")
+write_csv(df_slopes, "output/posthoc_intensity_slopes_by_species.csv")
 
 cat("All CSVs saved.\n")
 cat("For species-level pairwise contrasts, run:\n")
