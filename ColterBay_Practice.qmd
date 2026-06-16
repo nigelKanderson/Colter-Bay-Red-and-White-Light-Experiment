@@ -77,13 +77,7 @@ data_env <- data_env %>%
 ```
 
 ```{r}
-sky_brightness <- read.csv("sky_brightness_measurements.csv") %>%
-  mutate(
-    file_name_clean      = tools::file_path_sans_ext(filename),
-    site                 = toupper(stringr::word(file_name_clean, 2, sep = "_"))
-  ) %>%
-  group_by(site) %>%
-  summarise(mean_brightness_site = mean(mean_brightness, na.rm = TRUE))
+sky_brightness <- read.csv("output/sky_brightness_measurements.csv")
 
 data_env <- data_env %>%
   left_join(sky_brightness, by = "site") %>%
