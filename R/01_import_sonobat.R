@@ -9,7 +9,7 @@ library(purrr)
 library(stringr)
 
 files_all <- list.files(
-  path = "/Users/nanderson/Library/CloudStorage/GoogleDrive-nigel_anderson@brown.edu/.shortcut-targets-by-id/1RxI5D6hPL6E8DyVwvePE0g8a1CvV1L9D/grandteton_colterbay",
+  path = "/Users/nanderson/Desktop/grte_colterbay_sonobatch_v30.2",
   pattern = "\\.xlsx$",
   full.names = TRUE,
   recursive = TRUE
@@ -39,13 +39,15 @@ process_file <- function(file) {
   
   if(!all(required_cols %in% names(df))) return(NULL)
   
+  # v30.2 re-exports report no per-call discriminant probability (Prob = "-"),
+  # so a detection = any SonoBat-accepted classification (non-NA SppAccp).
   df <- df %>%
-    filter(Prob >= 0.9)
-  
+    filter(!is.na(SppAccp), !SppAccp %in% c("", "NoID", "noID"))
+
   df <- df %>%
     mutate(
-      
-      Prob = as.numeric(Prob),
+
+      Prob = suppressWarnings(as.numeric(Prob)),
       
       file_name_clean = 
         tools::file_path_sans_ext(Filename),
@@ -107,12 +109,11 @@ process_file <- function(file) {
     summarise(
       
       detections = n(),
-      
-      weighted_detections = 
-        sum(Prob, na.rm = TRUE),
-      
-      mean_confidence = 
-        mean(Prob, na.rm = TRUE),
+
+      # no per-call probability in v30.2 exports -> weight = count
+      weighted_detections = n(),
+
+      mean_confidence = NA_real_,
       
       .groups = 'drop'
       
@@ -130,8 +131,24 @@ process_file <- function(file) {
 
 data_raw <- map_dfr(files, process_file)
 
-write_csv(
-  all_counts,
-  "glmm_ready_data.csv"
-)
+# Colter Bay sites were recorded under GRTE distance-project codes in 2022 (same
+# physical site, different naming). The internal recording code is the true
+# location, so remap it to the Colter Bay site, then keep the 7 Colter Bay sites:
+#   GRTE01 = SHLA1, GRTE05 = NORO1, GRTE06 = CORA1, GRTE16 = GSLA1, GRTE17 = AMLA1
+colterbay_sites <- c("AMLA1", "CORA1", "CRNR1", "DALO1", "GSLA1", "NORO1", "SHLA1")
+data_raw <- data_raw %>%
+  mutate(site = toupper(site),
+         site = dplyr::recode(site,
+                              "GRTE01" = "SHLA1",
+                              "GRTE05" = "NORO1",
+                              "GRTE06" = "CORA1",
+                              "GRTE16" = "GSLA1",
+                              "GRTE17" = "AMLA1")) %>%
+  filter(site %in% colterbay_sites)
+
+cat("After site filter:", nrow(data_raw), "rows across",
+    dplyr::n_distinct(data_raw$site), "sites;",
+    dplyr::n_distinct(paste(data_raw$site, data_raw$date)), "site-nights.\n")
+
+write_csv(data_raw, "glmm_ready_data.csv")
 

@@ -13,6 +13,10 @@ Activate your venv and install dependencies first:
 Then run with the ▶ button in VS Code, or:
     python run_sky_brightness.py
 
+To rebuild only the per-site summary from the existing per-image CSV
+(e.g. after editing EXCLUDE_IMAGES; no DiCaLum needed):
+    python python/run_sky_brightness.py --aggregate-only
+
 Filename convention:  grte_<SITE>_dark_p<N>.CR2
 """
 
@@ -28,24 +32,46 @@ OUT_DIR = "output"             # folder for CSV outputs
 CAMERA_IDX = 0   # EOS6D
 LENS_IDX   = 0   # Sigma8mm
 
+# Kept in the per-image CSV but left out of the per-site averages.
+EXCLUDE_IMAGES = {
+    # Transient bright source in frame only: mean 19.1 DSU (p2 4.4, p3 2.9),
+    # pixel SD 340. Same photo as Distance grte17_distance_dark_p1 (also excluded there).
+    "grte_amla1_dark_p1.CR2",
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
+
+import sys
 
 import numpy as np
 import pandas as pd
 from pathlib import Path
 
-try:
-    import dicalum
-except ImportError:
-    raise ImportError(
-        "DiCaLum not installed.\n"
-        "Activate your venv and run:  python -m pip install dicalum==4.0b7"
-    )
+def _import_raw_deps():
+    global dicalum, exifread
+    try:
+        import dicalum
+    except ImportError:
+        raise ImportError(
+            "DiCaLum not installed.\n"
+            "Activate your venv and run:  python -m pip install dicalum==4.0b7"
+        )
 
-try:
-    import exifread
-except ImportError:
-    raise ImportError("exifread not installed.  Run:  python -m pip install exifread")
+    try:
+        import exifread
+    except ImportError:
+        raise ImportError("exifread not installed.  Run:  python -m pip install exifread")
+
+    # Hide the Tk window DiCaLum opens at import — we don't need the GUI
+    dicalum.TopWin.withdraw()
+
+    # Set camera and lens, then build the vignetting correction matrix
+    dicalum.dclinst.camera = CAMERA_IDX
+    dicalum.dclinst.lens   = LENS_IDX
+    dicalum.setvig()
+    print(f"Camera : {dicalum.cameras[CAMERA_IDX]}")
+    print(f"Lens   : {dicalum.lenses[LENS_IDX]}")
+    print(f"Vignetting matrix set — {dicalum.dcldat.V.shape}\n")
 
 
 def read_exif(filepath: Path):
@@ -61,18 +87,6 @@ def read_exif(filepath: Path):
         return float(val) if val else 0.0
 
     return parse("EXIF ISOSpeedRatings"), parse("EXIF FNumber"), parse("EXIF ExposureTime")
-
-# Hide the Tk window DiCaLum opens at import — we don't need the GUI
-dicalum.TopWin.withdraw()
-
-# Set camera and lens, then build the vignetting correction matrix
-dicalum.dclinst.camera = CAMERA_IDX
-dicalum.dclinst.lens   = LENS_IDX
-dicalum.setvig()
-print(f"Camera : {dicalum.cameras[CAMERA_IDX]}")
-print(f"Lens   : {dicalum.lenses[LENS_IDX]}")
-print(f"Vignetting matrix set — {dicalum.dcldat.V.shape}\n")
-
 
 def extract_site(filename_stem):
     """
@@ -148,34 +162,43 @@ def process_file(cr2_path: Path) -> dict | None:
 def main():
     raw_dir = Path(RAW_DIR)
     out_dir = Path(OUT_DIR)
-
-    if not raw_dir.exists():
-        raise FileNotFoundError(
-            f"RAW_DIR not found: {raw_dir.resolve()}\n"
-            "Update the RAW_DIR variable at the top of this script."
-        )
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    cr2_files = sorted(raw_dir.glob("*.CR2")) + sorted(raw_dir.glob("*.cr2"))
-    if not cr2_files:
-        print(f"No CR2 files found in {raw_dir.resolve()}")
-        return
-
-    print(f"Found {len(cr2_files)} CR2 files\n")
-    results = [r for f in cr2_files if (r := process_file(f)) is not None]
-
-    if not results:
-        print("No files processed successfully.")
-        return
-
-    # Per-image CSV
-    df_img = pd.DataFrame(results)
     img_csv = out_dir / "sky_brightness_per_image.csv"
-    df_img.to_csv(img_csv, index=False)
+
+    if "--aggregate-only" in sys.argv:
+        df_img = pd.read_csv(img_csv)
+    else:
+        _import_raw_deps()
+        if not raw_dir.exists():
+            raise FileNotFoundError(
+                f"RAW_DIR not found: {raw_dir.resolve()}\n"
+                "Update the RAW_DIR variable at the top of this script."
+            )
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        cr2_files = sorted(raw_dir.glob("*.CR2")) + sorted(raw_dir.glob("*.cr2"))
+        if not cr2_files:
+            print(f"No CR2 files found in {raw_dir.resolve()}")
+            return
+
+        print(f"Found {len(cr2_files)} CR2 files\n")
+        results = [r for f in cr2_files if (r := process_file(f)) is not None]
+
+        if not results:
+            print("No files processed successfully.")
+            return
+
+        # Per-image CSV
+        df_img = pd.DataFrame(results)
+        df_img.to_csv(img_csv, index=False)
+
+    excluded = df_img["filename"].isin(EXCLUDE_IMAGES)
+    for f in df_img.loc[excluded, "filename"]:
+        print(f"  Excluding from site averages: {f}")
+    df_used = df_img.loc[~excluded]
 
     # Per-site CSV (averages p1/p2/p3) — mean_brightness_site column used by R
     df_sites = (
-        df_img
+        df_used
         .groupby("site", as_index=False)
         .agg(
             mean_brightness_site = ("mean_dsu",  "mean"),   # R pipeline joins on this
@@ -186,7 +209,7 @@ def main():
     site_csv = out_dir / "sky_brightness_measurements.csv"
     df_sites.to_csv(site_csv, index=False)
 
-    print(f"\nDone! {len(results)} images | {df_sites.shape[0]} sites")
+    print(f"\nDone! {len(df_img)} images ({excluded.sum()} excluded) | {df_sites.shape[0]} sites")
     print(f"  Per-image : {img_csv.resolve()}")
     print(f"  Per-site  : {site_csv.resolve()}\n")
     print(df_sites.to_string(index=False))

@@ -5,10 +5,6 @@ format: html
 editor: visual
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
 ## Colter Bay Red and White Light Experiment
 
 \#####
@@ -34,12 +30,14 @@ clean_data <- clean_data(data_raw)
 ```{r}
 source("R/03_extract_habitat.R")
 
+# NOTE: add_moonlight() reads a global `data_env`, so it must exist before the
+# call — assign it first, then pipe through add_moonlight (works on a fresh knit).
 data_env <- add_habitat(
   clean_data,
   forest_raster = nlcd_forest,
   buffer = 50
-) |>
-  add_moonlight()
+)
+data_env <- add_moonlight(data_env)
 
 ```
 
@@ -77,7 +75,22 @@ data_env <- data_env %>%
 ```
 
 ```{r}
-sky_brightness <- read.csv("output/sky_brightness_measurements.csv")
+sky_brightness <- read.csv("output/sky_brightness_measurements.csv") %>%
+  mutate(brightness_imputed = FALSE)
+
+# CRNR1 and DALO1 have no sky photos. Each measured site's photos come from the
+# nearest distance-project site (all within ~110 m), so the missing two take the
+# value of their nearest photographed site by the same rule:
+#   CRNR1 -> GRTE01 (223 m), the photos used for SHLA1
+#   DALO1 -> GRTE17 (374 m), the photos used for AMLA1
+brightness_proxy <- c(CRNR1 = "SHLA1", DALO1 = "AMLA1")
+sky_brightness <- bind_rows(
+  sky_brightness,
+  sky_brightness %>%
+    filter(site %in% brightness_proxy) %>%
+    mutate(site = names(brightness_proxy)[match(site, brightness_proxy)],
+           brightness_imputed = TRUE)
+)
 
 data_env <- data_env %>%
   left_join(sky_brightness, by = "site") %>%
@@ -92,11 +105,11 @@ data_env <- data_env %>%
 source("R/06_run_models.R")
 models <- run_models(data_env)
 
-AIC(m0, m1, m2)
-anova(m0, m1)
-anova(m1, m2)
+AIC(models$m0, models$m1, models$m2)
+anova(models$m0, models$m1)
+anova(models$m1, models$m2)
 
-sim <- simulateResiduals(m2)
+sim <- simulateResiduals(models$m2)
 plot(sim)
 testDispersion(sim)
 testZeroInflation(sim)
@@ -115,9 +128,6 @@ emm_ci <- emmeans(models$m2, ~ color | intensity,
                   type = "response")
 print(emm_ci)
 pairs(emm_ci)
-
-emm_block <- emmeans(models$m2, ~ switching_interval, type = "response")
-pairs(emm_block, adjust = "tukey")
 ```
 
 ```{r}
@@ -212,26 +222,7 @@ fig2 <- ggplot(pred_jd, aes(x = x, y = predicted)) +
 fig2
 ```
 
-```{r}
-# ── Fig 3: Block effect ───────────────────────────────────────────────────────
-emm_block <- emmeans(models$m2, ~ switching_interval, type = "response")
-df_block  <- as.data.frame(emm_block) |>
-  mutate(block = factor(switching_interval, levels = sort(unique(switching_interval))))
-
-fig3 <- ggplot(df_block, aes(x = switching_interval, y = response)) +
-  geom_col(fill = "#DDEAF5", color = "#2E86AB", linewidth = 0.6, width = 0.55) +
-  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL),
-                width = 0.18, linewidth = 0.9, color = "#1A5276") +
-  labs(
-    title    = "Bat Activity by Experimental Block",
-    subtitle = "Marginal means ± 95% CI",
-    x        = "Block",
-    y        = "Predicted detections per night"
-  ) +
-  bat_theme
-
-fig3
-```
+<!-- Fig 3 (experimental block) removed: switching design is subsumed by (1|year) in the canonical model, so there is no block term to plot. -->
 
 ```{r}
 # ── Fig 4: Year trend ─────────────────────────────────────────────────────────
@@ -282,7 +273,7 @@ fig5
 
 ```{r}
 # ── Compose main figure panel ─────────────────────────────────────────────────
-main_panel <- (fig1 | fig2) / (fig3 | fig4) / (fig5 | plot_spacer()) +
+main_panel <- (fig1 | fig2) / (fig4 | fig5) +
   plot_annotation(
     title   = "Grand Teton Bat Light Experiment 2019–2024",
     caption = "Negative binomial GLMM · (1|site) random intercept · emmeans post-hoc contrasts",
@@ -644,6 +635,216 @@ data_env %>%
     legend.position = "top",
     strip.text      = element_text(face = "bold.italic", size = 9)
   )
+```
+
+# Distance-project bat framework (overall, guild, community-average, GAM)
+
+Ports the bat modelling framework from the distance project to the Colter Bay red/white experiment. Distance terms are omitted (there is no gradient here); the treatment predictor is light **colour × intensity** (intensity continuous, 10–100%), with season (`jd`, `jd²`), moon phase, habitat (`pct_nonforest`), and sky brightness, plus **site and year random effects**.
+
+**Year is modelled as a random effect `(1|year)` and the switching-interval term is dropped.** Each year ran a single fixed switching design (3-day: 2019/2022/2024; 7-day: 2020; red-75 control: 2021/2023), so switching is a *function of year* — a `(1|year)` effect subsumes it, fits far better (ΔAIC ≈ 149 vs. a 3/7/year block term), and avoids inflating the intensity effect by under-adjusting.
+
+**Confounding caveat.** The intensity *scheme* also varied by year (low intensities 10/30/50 only in 2022/2024; 95% only in 2020; red-75 in the 2021/2023 controls), so intensity is partly confounded with year across the full dataset. This all-years model is therefore best read as a **year-adjusted overview**; the clean within-design intensity experiment is **2022 + 2024** (both balanced 10/30/50/70/100, both colours, same design). Call-frequency guilds follow the distance project: **Low** = Epfu/Lano/Laci, **Myev**, **High** = Mylu/Myvo/Myci/Myyu.
+
+```{r cb_aggregations, warning=FALSE, message=FALSE}
+lowfreq_spp  <- c("Epfu", "Lano", "Laci")
+medfreq_spp  <- c("Myev")
+highfreq_spp <- c("Mylu", "Myvo", "Myci", "Myyu")
+focal_spp    <- c(lowfreq_spp, medfreq_spp, highfreq_spp)
+
+bat_env <- data_env %>%
+  mutate(
+    guild = case_when(
+      species %in% lowfreq_spp  ~ "LowFreq",
+      species %in% medfreq_spp  ~ "Myev",
+      species %in% highfreq_spp ~ "HighFreq",
+      TRUE ~ NA_character_
+    ),
+    year_f = factor(year)
+  )
+
+# one covariate row per site-night (colour/intensity are per date; habitat/brightness per site)
+sn_cov <- bat_env %>%
+  group_by(site, year_f, date) %>%
+  summarise(color = first(color), intensity = first(intensity), jd = first(jd),
+            mean_phase = first(mean_phase), pct_nonforest = first(pct_nonforest),
+            mean_brightness_site = first(mean_brightness_site),
+            switching_interval = first(switching_interval), .groups = "drop")
+
+# site-night totals, zero-filled guild-nights, zero-filled species-nights
+site_night <- bat_env %>%
+  group_by(site, year_f, date) %>%
+  summarise(total_det = sum(detections), .groups = "drop") %>%
+  left_join(sn_cov, by = c("site", "year_f", "date"))
+
+cluster_night <- sn_cov %>%
+  tidyr::crossing(guild = c("LowFreq", "Myev", "HighFreq")) %>%
+  left_join(
+    bat_env %>% filter(!is.na(guild)) %>%
+      group_by(site, year_f, date, guild) %>%
+      summarise(detections = sum(detections), .groups = "drop"),
+    by = c("site", "year_f", "date", "guild")
+  ) %>%
+  mutate(detections = tidyr::replace_na(detections, 0),
+         guild = factor(guild, levels = c("LowFreq", "Myev", "HighFreq")))
+
+spp_night <- sn_cov %>%
+  tidyr::crossing(species = focal_spp) %>%
+  left_join(
+    bat_env %>% group_by(site, year_f, date, species) %>%
+      summarise(detections = sum(detections), .groups = "drop"),
+    by = c("site", "year_f", "date", "species")
+  ) %>%
+  mutate(detections = tidyr::replace_na(detections, 0),
+         species = factor(species, levels = focal_spp))
+```
+
+## Overall, guild, and community-average models
+
+```{r cb_models, warning=FALSE, message=FALSE}
+# Switching-interval omitted: it is a function of year, so (1|year) subsumes it.
+cov_rhs <- "jd + I(jd^2) + mean_phase + pct_nonforest + mean_brightness_site"
+
+# 1) Overall total activity (site-night) = the canonical model from run_models()
+#    (same site-night total ~ colour*intensity + covariates + (1|year) + (1|site)).
+overall_model <- models$m2
+
+# 2) Call-frequency guild (zero-inflated; guild × intensity, common colour effect)
+guild_model <- glmmTMB(
+  as.formula(paste("detections ~ guild * intensity + color +", cov_rhs, "+ (1|year_f) + (1|site)")),
+  data = cluster_night, ziformula = ~1, family = nbinom2())
+
+# 3) Community-average species (hierarchical: species random intercept)
+species_glmm <- glmmTMB(
+  as.formula(paste("detections ~ color * intensity +", cov_rhs, "+ (1|year_f) + (1|site) + (1|species)")),
+  data = spp_night, ziformula = ~1, family = nbinom2())
+
+# intensity slope (log scale) by colour / guild
+emtrends(overall_model, ~ color, var = "intensity")
+emtrends(guild_model,   ~ guild, var = "intensity")
+emtrends(species_glmm,  ~ color, var = "intensity")
+```
+
+```{r cb_model_figs, warning=FALSE, message=FALSE, fig.width=13, fig.height=4.8}
+igrid <- seq(10, 100, length.out = 60)
+pred_col <- function(m, ttl, ylab) {
+  e <- as.data.frame(emmeans(m, ~ color | intensity, at = list(intensity = igrid), type = "response")) %>%
+    rename(lo = asymp.LCL, hi = asymp.UCL)
+  ggplot(e, aes(intensity, response, color = color, fill = color)) +
+    geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.12, color = NA) + geom_line(linewidth = 1) +
+    scale_color_manual(values = c(R = col_red, W = col_white), labels = c(R = "Red", W = "White"), name = "Light colour") +
+    scale_fill_manual(values = c(R = col_red, W = col_white), guide = "none") +
+    labs(title = ttl, x = "Intensity (%)", y = ylab) + bat_theme
+}
+p_overall <- pred_col(overall_model, "Overall total",          "Detections / night")
+p_species <- pred_col(species_glmm,  "Community-avg species",   "Detections / species-night")
+
+gcol <- c(LowFreq = "#1B2A4A", Myev = "#6A3D9A", HighFreq = "#B2182B")
+e_g <- as.data.frame(emmeans(guild_model, ~ guild | intensity, at = list(intensity = igrid), type = "response")) %>%
+  rename(lo = asymp.LCL, hi = asymp.UCL)
+p_guild <- ggplot(e_g, aes(intensity, response, color = guild, fill = guild)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.10, color = NA) + geom_line(linewidth = 1) + scale_y_log10() +
+  scale_color_manual(values = gcol, name = "Guild") + scale_fill_manual(values = gcol, guide = "none") +
+  labs(title = "Guild model", x = "Intensity (%)", y = "Detections / guild-night (log)") + bat_theme
+
+(p_overall | p_guild | p_species) +
+  plot_annotation(title = "Bats — colour × intensity: three models",
+                  theme = theme(plot.title = element_text(face = "bold")))
+```
+
+## Clean intensity experiment (2022 + 2024)
+
+The all-years model above is a year-adjusted *overview*, but intensity is partly confounded with year there. **2022 and 2024 are the only two years that ran the balanced 10/30/50/70/100 design with both colours under the same (3-day) switching** — so this is the trustworthy within-design test of the intensity response. Intensity is treated as a 5-level factor (so a mid-intensity peak isn't forced into a line), with year as a blocking factor.
+
+```{r cb_clean_years, warning=FALSE, message=FALSE, fig.width=8.5, fig.height=5.5}
+clean <- site_night %>%
+  filter(year_f %in% c("2022", "2024")) %>%
+  mutate(int5 = factor(intensity, levels = c(10, 30, 50, 70, 100)),
+         site = factor(site), year_f = droplevels(year_f))
+
+clean_model <- glmmTMB(
+  total_det ~ color * int5 + year_f + jd + I(jd^2) + mean_phase +
+    pct_nonforest + mean_brightness_site + (1 | site),
+  data = clean, family = nbinom2())
+
+# predicted detections by intensity level + White-vs-Red contrast per level
+e_clean <- as.data.frame(emmeans(clean_model, ~ color | int5, type = "response")) %>%
+  mutate(int5 = factor(int5, levels = c(10, 30, 50, 70, 100)))
+ct_clean <- as.data.frame(contrast(emmeans(clean_model, ~ color | int5, type = "response"),
+                                    method = "revpairwise"))
+print(ct_clean %>% transmute(intensity = as.character(int5),
+                             White_vs_Red = round(ratio, 2), p = round(p.value, 3)))
+
+stars <- function(p) ifelse(p < .001, "***", ifelse(p < .01, "**", ifelse(p < .05, "*", "")))
+st <- tibble(int5 = factor(ct_clean$int5, levels = c(10, 30, 50, 70, 100)),
+             lab  = stars(ct_clean$p.value))
+
+ggplot(e_clean, aes(int5, response, color = color, group = color)) +
+  geom_line(linewidth = 0.9, position = position_dodge(0.3)) +
+  geom_point(size = 2.6, position = position_dodge(0.3)) +
+  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.16,
+                position = position_dodge(0.3)) +
+  geom_text(data = st, aes(x = int5, y = Inf, label = lab), inherit.aes = FALSE,
+            vjust = 1.4, size = 4.6, color = "#111111") +
+  scale_color_manual(values = c(R = col_red, W = col_white),
+                     labels = c(R = "Red", W = "White"), name = "Light colour") +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.16))) +
+  labs(title = "Clean intensity experiment: 2022 + 2024 (balanced design)",
+       subtitle = "Both colours peak at 50%; bats avoid bright red (White >> Red at 100%). Asterisks: White vs Red.",
+       x = "Intensity (%)", y = "Predicted detections / night") +
+  bat_theme
+```
+
+## Overall bat activity: intensity × colour GAM
+
+```{r cb_gam, warning=FALSE, message=FALSE, fig.width=8, fig.height=5}
+library(mgcv)
+gam_dat <- site_night %>% filter(!is.na(intensity), !is.na(color)) %>% mutate(site = factor(site))
+bat_gam <- gam(
+  total_det ~ color + year_f + s(intensity, by = color, k = 5) + s(jd, k = 5) +
+    mean_phase + pct_nonforest + mean_brightness_site + s(site, bs = "re"),
+  data = gam_dat, family = nb(), method = "REML")
+summary(bat_gam)$s.table
+
+pg <- expand_grid(intensity = seq(10, 100, 1),
+                  color = factor(c("R", "W"), levels = levels(gam_dat$color))) %>%
+  mutate(jd = median(gam_dat$jd), mean_phase = mean(gam_dat$mean_phase, na.rm = TRUE),
+         pct_nonforest = mean(gam_dat$pct_nonforest, na.rm = TRUE),
+         mean_brightness_site = mean(gam_dat$mean_brightness_site, na.rm = TRUE),
+         year_f = gam_dat$year_f[1], site = gam_dat$site[1])
+pr <- predict(bat_gam, newdata = pg, type = "link", se.fit = TRUE, exclude = "s(site)")
+il <- family(bat_gam)$linkinv
+pg <- pg %>% mutate(fit = il(pr$fit), lo = il(pr$fit - 1.96 * pr$se.fit), hi = il(pr$fit + 1.96 * pr$se.fit))
+ggplot(pg, aes(intensity, fit, color = color, fill = color)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.15, color = NA) + geom_line(linewidth = 1) +
+  scale_color_manual(values = c(R = col_red, W = col_white), labels = c(R = "Red", W = "White"), name = "Light colour") +
+  scale_fill_manual(values = c(R = col_red, W = col_white), guide = "none") +
+  labs(title = "Overall bat activity vs intensity (GAM)", x = "Intensity (%)",
+       y = "Predicted detections / night") + bat_theme
+```
+
+## Data-integrity sanity checks (bats)
+
+```{r cb_sanity_checks, warning=FALSE, message=TRUE}
+stopifnot(
+  "site-night totals are non-negative integers" =
+    all(site_night$total_det >= 0 & site_night$total_det == floor(site_night$total_det)),
+  "guild grid has all three guilds per site-night" =
+    all(table(cluster_night$guild) == nrow(sn_cov)),
+  "species grid zero-filled for all focal species" =
+    all(focal_spp %in% levels(spp_night$species)) && nlevels(spp_night$species) == length(focal_spp),
+  "intensity within 10-100%" =
+    all(site_night$intensity >= 10 & site_night$intensity <= 100, na.rm = TRUE),
+  "colours are R/W only" =
+    all(as.character(site_night$color) %in% c("R", "W")),
+  "no missing model covariates" =
+    all(!is.na(site_night$mean_brightness_site)),
+  "year has multiple levels for (1|year)" =
+    dplyr::n_distinct(site_night$year_f) >= 2
+)
+message("Bat sanity checks passed: ", nrow(site_night), " site-nights, ",
+        length(focal_spp), " focal species across ",
+        dplyr::n_distinct(site_night$site), " sites and ",
+        dplyr::n_distinct(site_night$year_f), " years.")
 ```
 
 ```{r}
